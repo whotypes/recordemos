@@ -73,12 +73,10 @@ export const useVideoPlayer = (videoSrc: string | null) => {
     }
 
     const handlePlay = () => {
-      console.log("[v0] video playing")
       setIsPlaying(true)
     }
 
     const handlePause = () => {
-      console.log("[v0] video paused")
       setIsPlaying(false)
     }
 
