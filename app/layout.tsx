@@ -8,9 +8,9 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: 'Record Demos | The Last Video Editor You\'ll Ever Need',
+  description: 'Built for the TanStack Start Hackathon by Convex!',
+  generator: 'Next.js',
   icons: {
     icon: [
       {
@@ -37,7 +37,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`font-sans antialiased`}>
+      <body className={`font-sans antialiased ${_geist.className} ${_geistMono.className}`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
