@@ -29,5 +29,5 @@ export default defineSchema({
     durationMs: v.optional(v.number()),
   })
     .index("byProject", ["projectId"])
-    .index("byOwner", ["ownerId"]);
+    .index("byOwner", ["ownerId"]),
 });
