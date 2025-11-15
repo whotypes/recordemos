@@ -6,11 +6,12 @@ import { Separator } from "@/components/ui/separator"
 import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
 import { cn } from "@/lib/utils"
 import { useUser } from "@clerk/tanstack-react-start"
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import { convexQuery } from "@convex-dev/react-query"
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { useCustomer } from "autumn-js/react"
 import { api } from "convex/_generated/api"
+import { useAction } from "convex/react"
 import { Check, ChevronDown, CreditCard, Plus, Sparkles } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -56,9 +57,9 @@ export function TeamSwitcher({
         convexQuery(api.projects.listForCurrentUser, {}),
     )
 
-    const createProjectMutationFn = useConvexMutation(api.projects.create)
+  const createProjectAction = useAction(api.projects.create)
     const createProjectMutation = useMutation({
-        mutationFn: createProjectMutationFn,
+      mutationFn: createProjectAction,
     })
 
   const isPro = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
@@ -111,7 +112,7 @@ export function TeamSwitcher({
 
         setIsCreating(true)
         try {
-            const projectId = await createProjectMutation.mutateAsync({ name })
+          const { projectId } = await createProjectMutation.mutateAsync({ name })
 
             await queryClient.invalidateQueries({
                 queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
