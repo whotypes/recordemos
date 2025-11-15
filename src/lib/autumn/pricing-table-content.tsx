@@ -1,7 +1,11 @@
 import { type Product } from "autumn-js";
+import type { Customer } from "autumn-js/react";
 
-export const getPricingTableContent = (product: Product) => {
-  const { scenario, free_trial, properties } = product;
+export const getPricingTableContent = (
+  product: Product,
+  customer?: Customer | null,
+) => {
+  const { scenario, properties } = product;
   const { is_one_off, updateable, has_trial } = properties;
 
   if (has_trial) {
@@ -9,6 +13,9 @@ export const getPricingTableContent = (product: Product) => {
       buttonText: <p>Start Free Trial</p>,
     };
   }
+
+  const isCustomerOnThisProduct =
+    customer?.products?.some((p) => p.id === product.id) ?? false;
 
   switch (scenario) {
     case "scheduled":
@@ -54,8 +61,13 @@ export const getPricingTableContent = (product: Product) => {
       };
 
     case "cancel":
+      if (isCustomerOnThisProduct) {
+        return {
+          buttonText: <p>Cancel Plan</p>,
+        };
+      }
       return {
-        buttonText: <p>Cancel Plan</p>,
+        buttonText: <p>Get started</p>,
       };
 
     default:

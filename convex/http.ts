@@ -3,6 +3,7 @@ import { httpRouter } from "convex/server";
 import { Webhook } from "svix";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
+import { autumn } from "./autumn";
 
 const http = httpRouter();
 
@@ -14,6 +15,15 @@ http.route({
     if (!clerkEvent) return new Response("Invalid Request...Check Clerk Webhook Secret and URL", { status: 400 });
     switch (clerkEvent.type) {
       case "user.created":
+        await ctx.runMutation(internal.users.upsertFromClerk, {
+          data: clerkEvent.data!,
+        });
+        
+        await ctx.runAction(internal.users.attachFreePlan, {
+          clerkUserId: clerkEvent.data!.id!,
+        });
+        break;
+
       case "user.updated":
         await ctx.runMutation(internal.users.upsertFromClerk, {
           data: clerkEvent.data!,

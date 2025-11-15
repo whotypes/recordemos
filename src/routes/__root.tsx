@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 
+import { AutumnProviderComponent } from "@/components/autumn/autumn-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { auth } from "@clerk/tanstack-react-start/server";
 import { ConvexQueryClient } from "@convex-dev/react-query";
@@ -104,9 +105,11 @@ function RootComponent() {
 	return (
 		<ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
 			<ConvexProviderWithClerk client={context.convexClient} useAuth={useAuth}>
-				<RootDocument>
-					<Outlet />
-				</RootDocument>
+				<AutumnProviderComponent>
+					<RootDocument>
+						<Outlet />
+					</RootDocument>
+				</AutumnProviderComponent>
 			</ConvexProviderWithClerk>
 		</ClerkProvider>
 	)

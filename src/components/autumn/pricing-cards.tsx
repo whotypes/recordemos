@@ -120,7 +120,7 @@ interface CombinedPricingCardProps {
 
 function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: CombinedPricingCardProps) {
 	const { name, display: productDisplay } = basicPlan;
-	const { buttonText } = getPricingTableContent(basicPlan);
+	const { buttonText } = getPricingTableContent(basicPlan, customer);
 
 	const isRecommended = productDisplay?.recommend_text ? true : false;
 	const mainPriceDisplay = basicPlan.properties?.is_free
@@ -143,11 +143,17 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 	const periodText = mainPriceDisplay?.secondary_text || '';
 
 	const handleClick = async () => {
+		console.log('handleClick', basicPlan.id, customer);
 		if (basicPlan.id && customer) {
-			await checkout({
+			const result = await checkout({
 				productId: basicPlan.id,
 				dialog: CheckoutDialog,
+				successUrl: window.location.origin + '/studio',
 			});
+
+			if (result?.data?.url && !basicPlan.properties?.is_free) {
+				window.location.href = result.data.url;
+			}
 		} else if (basicPlan.display?.button_url) {
 			window.open(basicPlan.display?.button_url, '_blank');
 		}
@@ -194,7 +200,7 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 			<Body>
 				{basicFeatureItems.length > 0 && (
 					<List>
-						{basicFeatureItems.map((item, idx) => {
+						{basicFeatureItems.map((item) => {
 							const primaryText = item.display?.primary_text || '';
 							const secondaryText = item.display?.secondary_text || '';
 
@@ -223,7 +229,7 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 					<>
 						<Separator>Pro features</Separator>
 						<List>
-							{proFeatureItems.map((item, idx) => {
+							{proFeatureItems.map((item) => {
 								const primaryText = item.display?.primary_text || '';
 								const secondaryText = item.display?.secondary_text || '';
 
@@ -263,7 +269,7 @@ interface ProPricingCardProps {
 
 function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCardProps) {
 	const { name, display: productDisplay } = proPlan;
-	const { buttonText } = getPricingTableContent(proPlan);
+	const { buttonText } = getPricingTableContent(proPlan, customer);
 
 	const isRecommended = productDisplay?.recommend_text ? true : false;
 	const mainPriceDisplay = proPlan.properties?.is_free
@@ -284,11 +290,17 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 	const periodText = mainPriceDisplay?.secondary_text || '';
 
 	const handleClick = async () => {
+		console.log('handleClick', proPlan.id, customer);
 		if (proPlan.id && customer) {
-			await checkout({
+			const result = await checkout({
 				productId: proPlan.id,
 				dialog: CheckoutDialog,
+				successUrl: window.location.origin + '/studio',
 			});
+
+			if (result?.data?.url && !proPlan.properties?.is_free) {
+				window.location.href = result.data.url;
+			}
 		} else if (proPlan.display?.button_url) {
 			window.open(proPlan.display?.button_url, '_blank');
 		}
@@ -335,7 +347,7 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 			<Body>
 				{proFeatureItems.length > 0 && (
 					<List>
-						{proFeatureItems.map((item, idx) => {
+						{proFeatureItems.map((item) => {
 							const primaryText = item.display?.primary_text || '';
 							const secondaryText = item.display?.secondary_text || '';
 
@@ -364,7 +376,7 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 					<>
 						<Separator>Pro features</Separator>
 						<List>
-							{basicFeatureItems.map((item, idx) => {
+							{basicFeatureItems.map((item) => {
 								const primaryText = item.display?.primary_text || '';
 								const secondaryText = item.display?.secondary_text || '';
 

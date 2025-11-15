@@ -3,7 +3,6 @@ import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routerWithQueryClient } from "@tanstack/react-router-with-query";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { AutumnProviderComponent } from "./components/autumn/autumn-provider";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
@@ -31,15 +30,12 @@ export function getRouter() {
     createRouter({
       routeTree,
       defaultPreload: "intent",
-      defaultNotFoundComponent: () => <div>Not Found</div>,
       // @ts-ignore
       context: { queryClient, convexClient: convex,  convexQueryClient: convexQueryClient },
       scrollRestoration: true,
       Wrap: ({ children }) => (
         <ConvexProvider client={convexQueryClient.convexClient}>
-          <AutumnProviderComponent>
           {children}
-          </AutumnProviderComponent>
         </ConvexProvider>
       ),
     }),
