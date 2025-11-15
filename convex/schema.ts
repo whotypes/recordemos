@@ -10,4 +10,23 @@ export default defineSchema({
     // clerk id, from subject jwt field
     externalId: v.string(),
   }).index("byExternalId", ["externalId"]),
+  projects: defineTable({
+    ownerId: v.id("users"),
+    name: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("byOwnerId", ["ownerId"]),
+  assets: defineTable({
+  ownerId: v.id("users"),
+  projectId: v.id("projects"),
+  type: v.union(
+    v.literal("video"),
+    v.literal("audio"),
+    v.literal("image")
+  ),
+  url: v.string(), // our R2 URL
+  sizeBytes: v.number(),
+  durationMs: v.optional(v.number()),
+  createdAt: v.number(),
+  }).index("byProject", ["projectId"]).index("byOwner", ["ownerId"]),
 });
