@@ -136,25 +136,36 @@ export default function TimelineCanvas({
         }
 
         <div className="relative w-full h-full">
-          {videoBlocks.map((block) => (
-            <TimelineBlockComponent
-              key={block.id}
-              block={block}
-              isSelected={selectedBlock === block.id}
-              onSelect={() => setSelectedBlock(block.id)}
-              onBlockClick={(blockId, timeInBlock) => onBlockClick(blockId, timeInBlock)}
-              onDragEnd={onBlockDragEnd}
-              onResizeStart={onBlockResizeStart}
-              onResizeEnd={onBlockResizeEnd}
-              onDelete={onBlockDelete}
-              onDuplicate={onBlockDuplicate}
-              totalDuration={videoDuration}
-              pixelsPerSecond={pixelsPerSecond}
-            />
-          ))}
+          {videoBlocks.map((block) => {
+            const blocksOnSameTrack = videoBlocks
+              .filter(b => b.id !== block.id && b.track === block.track)
+              .map(b => ({ id: b.id, start: b.start, duration: b.duration }))
+
+            return (
+              <TimelineBlockComponent
+                key={block.id}
+                block={block}
+                isSelected={selectedBlock === block.id}
+                onSelect={() => setSelectedBlock(block.id)}
+                onBlockClick={(blockId, timeInBlock) => onBlockClick(blockId, timeInBlock)}
+                onDragEnd={onBlockDragEnd}
+                onResizeStart={onBlockResizeStart}
+                onResizeEnd={onBlockResizeEnd}
+                onDelete={onBlockDelete}
+                onDuplicate={onBlockDuplicate}
+                totalDuration={videoDuration}
+                pixelsPerSecond={pixelsPerSecond}
+                blocksOnSameTrack={blocksOnSameTrack}
+              />
+            )
+          })}
 
           {overlayBlocks.map((block) => {
             const trackNumber = blockTypeToTrack[block.type] ?? 1
+            const blocksOnSameTrack = overlayBlocks
+              .filter(b => b.id !== block.id && blockTypeToTrack[b.type] === trackNumber)
+              .map(b => ({ id: b.id, start: b.start, duration: b.duration }))
+
             return (
               <TimelineBlockComponent
                 key={block.id}
@@ -169,6 +180,7 @@ export default function TimelineCanvas({
                 onDuplicate={onBlockDuplicate}
                 totalDuration={videoDuration}
                 pixelsPerSecond={pixelsPerSecond}
+                blocksOnSameTrack={blocksOnSameTrack}
               />
             )
           })}

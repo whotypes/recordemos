@@ -41,7 +41,7 @@ export default function AddBlockModal({ isOpen, onClose, onAddBlock, currentTime
       trim: {
         type: "trim",
         label: "Trim",
-        color: "bg-accent",
+        color: "bg-destructive",
         trimStart,
         trimEnd,
       },

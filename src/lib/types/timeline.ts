@@ -96,13 +96,28 @@ export const convexBlockToTimelineBlock = (
   block: ConvexTimelineBlock,
   trackOrder: number
 ): TimelineBlock => {
+  const getDefaultColor = (blockType: string): string => {
+    switch (blockType) {
+      case "video":
+        return "bg-orange-500"
+      case "zoom":
+        return "bg-primary"
+      case "pan":
+        return "bg-secondary"
+      case "trim":
+        return "bg-destructive"
+      default:
+        return "bg-primary"
+    }
+  }
+
   return {
     id: block._id,
     type: block.blockType,
     label: block.metadata?.label ?? block.blockType,
     start: block.startMs / 1000,
     duration: block.durationMs / 1000,
-    color: block.metadata?.color ?? "bg-primary/70",
+    color: block.metadata?.color ?? getDefaultColor(block.blockType),
     track: trackOrder,
     zoomLevel: block.metadata?.zoomLevel,
     trimStart: block.trimStartMs / 1000,

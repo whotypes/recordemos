@@ -63,23 +63,70 @@ export const useTimelineBlocks = (
   }, [projectId, tracks, initializeTracks])
 
   const handleBlockDragEnd = useCallback(async (blockId: string, newStart: number) => {
+    const block = blocks.find((b) => b.id === blockId)
+    if (!block) return
+
+    const blocksOnSameTrack = blocks.filter((b) => b.id !== blockId && b.track === block.track)
+
+    let adjustedStart = newStart
+    const blockEnd = newStart + block.duration
+
+    for (const otherBlock of blocksOnSameTrack) {
+      const otherEnd = otherBlock.start + otherBlock.duration
+
+      if (newStart < otherEnd && blockEnd > otherBlock.start) {
+        if (newStart < otherBlock.start) {
+          adjustedStart = Math.max(0, otherBlock.start - block.duration)
+        } else {
+          adjustedStart = otherEnd
+        }
+      }
+    }
+
+    adjustedStart = Math.max(0, Math.min(videoDuration - block.duration, adjustedStart))
+
     await updatePosition({
       blockId: blockId as Id<"timeline_blocks">,
-      startMs: Math.round(newStart * 1000),
+      startMs: Math.round(adjustedStart * 1000),
     })
-  }, [updatePosition])
+  }, [blocks, videoDuration, updatePosition])
 
   const handleBlockResizeStart = useCallback((_blockId: string, _side: "left" | "right") => {
     // track which side is being resized if needed
   }, [])
 
   const handleBlockResizeEnd = useCallback(async (blockId: string, newStart: number, newDuration: number) => {
+    const block = blocks.find((b) => b.id === blockId)
+    if (!block) return
+
+    const blocksOnSameTrack = blocks.filter((b) => b.id !== blockId && b.track === block.track)
+
+    let adjustedStart = newStart
+    let adjustedDuration = newDuration
+    const blockEnd = newStart + newDuration
+
+    for (const otherBlock of blocksOnSameTrack) {
+      const otherEnd = otherBlock.start + otherBlock.duration
+
+      if (newStart < otherEnd && blockEnd > otherBlock.start) {
+        if (newStart < block.start) {
+          adjustedStart = Math.max(0, otherBlock.start - newDuration)
+          adjustedDuration = block.start + block.duration - adjustedStart
+        } else {
+          adjustedDuration = Math.max(0.2, otherBlock.start - newStart)
+        }
+      }
+    }
+
+    adjustedStart = Math.max(0, adjustedStart)
+    adjustedDuration = Math.max(0.2, Math.min(videoDuration - adjustedStart, adjustedDuration))
+
     await updateSize({
       blockId: blockId as Id<"timeline_blocks">,
-      startMs: Math.round(newStart * 1000),
-      durationMs: Math.round(newDuration * 1000),
+      startMs: Math.round(adjustedStart * 1000),
+      durationMs: Math.round(adjustedDuration * 1000),
     })
-  }, [updateSize])
+  }, [blocks, videoDuration, updateSize])
 
   const handleBlockDelete = useCallback(async (blockId: string) => {
     const block = blocks.find((b) => b.id === blockId)

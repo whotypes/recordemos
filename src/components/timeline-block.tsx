@@ -24,6 +24,11 @@ interface TimelineBlockProps {
   onBlockClick?: (blockId: string, timeInBlock: number) => void
   totalDuration: number
   pixelsPerSecond: number
+  blocksOnSameTrack?: Array<{
+    id: string
+    start: number
+    duration: number
+  }>
 }
 
 export default function TimelineBlock({
@@ -38,6 +43,7 @@ export default function TimelineBlock({
   onBlockClick,
   totalDuration,
   pixelsPerSecond,
+  blocksOnSameTrack = [],
 }: TimelineBlockProps) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const blockRef = useRef<HTMLDivElement>(null)
@@ -91,9 +97,25 @@ export default function TimelineBlock({
 
       const deltaX = moveEvent.clientX - startX
       const timeDelta = deltaX / pixelsPerSecond
-      const newStart = Math.max(0, Math.min(totalDuration - block.duration, startPos + timeDelta))
-      const newPercent = (newStart / totalDuration) * 100
+      let newStart = Math.max(0, Math.min(totalDuration - block.duration, startPos + timeDelta))
 
+      const newEnd = newStart + block.duration
+
+      for (const otherBlock of blocksOnSameTrack) {
+        if (otherBlock.id === block.id) continue
+
+        const otherEnd = otherBlock.start + otherBlock.duration
+
+        if (newStart < otherEnd && newEnd > otherBlock.start) {
+          if (newStart < otherBlock.start) {
+            newStart = Math.max(0, otherBlock.start - block.duration)
+          } else {
+            newStart = otherEnd
+          }
+        }
+      }
+
+      const newPercent = (newStart / totalDuration) * 100
       lastLeft = newPercent
 
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -159,8 +181,20 @@ export default function TimelineBlock({
       const timeDelta = deltaX / pixelsPerSecond
 
       if (side === "left") {
-        const newStart = Math.max(0, startPos + timeDelta)
-        const newDuration = startDuration - (newStart - startPos)
+        let newStart = Math.max(0, startPos + timeDelta)
+        let newDuration = startDuration - (newStart - startPos)
+
+        for (const otherBlock of blocksOnSameTrack) {
+          if (otherBlock.id === block.id) continue
+
+          const otherEnd = otherBlock.start + otherBlock.duration
+
+          if (otherEnd > newStart && otherBlock.start < startPos + startDuration) {
+            newStart = Math.max(newStart, otherEnd)
+            newDuration = startPos + startDuration - newStart
+          }
+        }
+
         const clampedDuration = Math.max(0.2, newDuration)
         const clampedStart = startPos + startDuration - clampedDuration
 
@@ -178,7 +212,18 @@ export default function TimelineBlock({
           }
         })
       } else {
-        const newDuration = Math.max(0.2, Math.min(totalDuration - startPos, startDuration + timeDelta))
+        let newDuration = Math.max(0.2, Math.min(totalDuration - startPos, startDuration + timeDelta))
+
+        for (const otherBlock of blocksOnSameTrack) {
+          if (otherBlock.id === block.id) continue
+
+          const newEnd = startPos + newDuration
+
+          if (newEnd > otherBlock.start && startPos < otherBlock.start) {
+            newDuration = Math.max(0.2, otherBlock.start - startPos)
+          }
+        }
+
         const newWidthPercent = (newDuration / totalDuration) * 100
 
         lastWidth = newWidthPercent
