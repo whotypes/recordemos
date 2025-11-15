@@ -360,7 +360,7 @@ export const PricingCardButton = React.forwardRef<
   return (
     <Button
       className={cn(
-        "w-full py-3 px-4 group overflow-hidden relative transition-all duration-300 hover:brightness-90 border rounded-lg",
+        "w-full py-3 px-4 group overflow-hidden relative transition-all duration-300 hover:brightness-90 border rounded-lg cursor-pointer",
         className
       )}
       {...props}
