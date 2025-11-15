@@ -4,6 +4,8 @@ import PremiumUpsellModal from "@/components/premium-upsell-modal"
 import PreviewCanvas from "@/components/preview-canvas"
 import TimelineEditor from "@/components/timeline-editor"
 import StudioNavbar from "@/components/ui/studio-navbar"
+import { useProjectRestore } from "@/lib/hooks/use-project-restore"
+import { useProjectSettingsSync } from "@/lib/hooks/use-project-settings-sync"
 import { useVideoPlayer } from "@/lib/hooks/use-video-player"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
@@ -12,6 +14,7 @@ import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from "convex/_generated/api"
+import type { Id } from "convex/_generated/dataModel"
 import { useEffect, useState } from "react"
 
 export const Route = createFileRoute("/studio")({
@@ -44,6 +47,12 @@ function Studio() {
         ...convexQuery(api.projects.listForCurrentUser, {}),
         enabled: isAuthLoaded && isSignedIn,
     });
+
+    // restore project state from database and R2
+    useProjectRestore(projectId as Id<"projects"> | null)
+
+    // sync local settings changes to database
+    useProjectSettingsSync(projectId as Id<"projects"> | null)
 
     useEffect(() => {
         if (!isAuthLoaded || !isSignedIn || !convexProjects) {
@@ -108,6 +117,7 @@ function Studio() {
 
                     <div className="border-t border-border bg-card">
                         <TimelineEditor
+                            projectId={projectId as Id<"projects"> | null}
                             currentTime={currentTime}
                             setCurrentTime={(time) => scrubToTime(time, videoRef)}
                             isPlaying={isPlaying}

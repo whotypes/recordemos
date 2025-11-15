@@ -52,6 +52,8 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
 
   const uploadFile = useUploadFile(api.assets);
   const insertAssetRow = useMutation(api.assets.insertAssetRow);
+  const initializeTimeline = useMutation(api.timeline_helpers.initializeProjectTimeline);
+  const initializeSettings = useMutation(api.project_settings.initialize);
   const [isUploading, setIsUploading] = useState(false);
 
   // verify project exists before we even try to upload
@@ -126,6 +128,20 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
         sizeBytes: file.size,
         durationMs: metadata.duration * 1000,
       });
+
+      // initialize timeline with base video block
+      if (type === "video") {
+        await initializeTimeline({
+          projectId: options.projectId,
+          assetId,
+          durationMs: metadata.duration * 1000,
+        });
+
+        // initialize project settings if not exists
+        await initializeSettings({
+          projectId: options.projectId,
+        });
+      }
 
       toast.success("Video uploaded successfully");
       options.onUploadComplete?.(assetId);

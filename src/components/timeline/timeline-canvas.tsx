@@ -8,11 +8,9 @@ interface TimelineCanvasProps {
   videoDuration: number
   pixelsPerSecond: number
   onBlockClick: (blockId: string, timeInBlock: number) => void
-  onBlockDragMove: (blockId: string, newStart: number) => void
-  onBlockDragEnd: () => void
+  onBlockDragEnd: (blockId: string, newStart: number) => void
   onBlockResizeStart: (blockId: string, side: "left" | "right") => void
-  onBlockResizeMove: (blockId: string, newStart: number, newDuration: number) => void
-  onBlockResizeEnd: () => void
+  onBlockResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
   onBlockDelete: (blockId: string) => void
   onBlockDuplicate: (blockId: string) => void
   timelineIndicatorRef: React.RefObject<HTMLDivElement | null>
@@ -25,10 +23,8 @@ export default function TimelineCanvas({
   videoDuration,
   pixelsPerSecond,
   onBlockClick,
-  onBlockDragMove,
   onBlockDragEnd,
   onBlockResizeStart,
-  onBlockResizeMove,
   onBlockResizeEnd,
   onBlockDelete,
   onBlockDuplicate,
@@ -39,10 +35,6 @@ export default function TimelineCanvas({
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
-      const rect = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const percentage = x / rect.width
-      // This would need to be passed from parent - for now just set selectedBlock to null
       setSelectedBlock(null)
     }
   }
@@ -61,10 +53,8 @@ export default function TimelineCanvas({
             isSelected={selectedBlock === block.id}
             onSelect={() => setSelectedBlock(block.id)}
             onBlockClick={(blockId, timeInBlock) => onBlockClick(blockId, timeInBlock)}
-            onDragMove={onBlockDragMove}
             onDragEnd={onBlockDragEnd}
             onResizeStart={onBlockResizeStart}
-            onResizeMove={(newStart, newDuration) => onBlockResizeMove(block.id, newStart, newDuration)}
             onResizeEnd={onBlockResizeEnd}
             onDelete={onBlockDelete}
             onDuplicate={onBlockDuplicate}

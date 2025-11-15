@@ -1,92 +1,138 @@
-import { useEffect, useState } from "react"
-import { TimelineBlock, TRACK_MAP, BlockData } from "@/lib/types/timeline"
+import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
+import { BlockData, convexBlockToTimelineBlock } from "@/lib/types/timeline"
+import { useMutation, useQuery } from "convex/react"
+import { useCallback, useEffect, useMemo } from "react"
+import { api } from "../../../convex/_generated/api"
+import type { Id } from "../../../convex/_generated/dataModel"
 
 export const useTimelineBlocks = (
+  projectId: Id<"projects"> | null,
   videoDuration: number,
   currentTime: number,
   selectedBlock: string | null,
   setSelectedBlock: (id: string | null) => void,
   onVideoBlockDelete?: () => void
 ) => {
-  const [blocks, setBlocks] = useState<TimelineBlock[]>([])
-  const [hasCreatedBaseBlock, setHasCreatedBaseBlock] = useState(false)
+  const { setCurrentProjectId } = useTimelineBlocksStore()
 
-  // Create base video block when video duration is available
   useEffect(() => {
-    if (videoDuration > 0.1 && !hasCreatedBaseBlock) {
-      const baseBlock: TimelineBlock = {
-        id: "base-video",
-        type: "video",
-        label: "Video",
-        start: 0,
-        duration: videoDuration,
-        color: "bg-primary/70",
-        track: 0,
-      }
-      setBlocks([baseBlock])
-      setHasCreatedBaseBlock(true)
+    setCurrentProjectId(projectId)
+  }, [projectId, setCurrentProjectId])
+
+  const convexBlocks = useQuery(
+    api.timeline_blocks.list,
+    projectId ? { projectId } : "skip"
+  )
+
+  const tracks = useQuery(
+    api.timeline_tracks.list,
+    projectId ? { projectId } : "skip"
+  )
+
+  const createBlock = useMutation(api.timeline_blocks.create)
+  const updatePosition = useMutation(api.timeline_blocks.updatePosition)
+  const updateSize = useMutation(api.timeline_blocks.updateSize)
+  const removeBlock = useMutation(api.timeline_blocks.remove)
+  const duplicateBlock = useMutation(api.timeline_blocks.duplicate)
+  const initializeTracks = useMutation(api.timeline_tracks.initializeDefaultTracks)
+
+  const trackMap = useMemo(() => {
+    if (!tracks) return new Map<string, number>()
+    const map = new Map<string, number>()
+    tracks.forEach((track) => {
+      map.set(track._id, track.order)
+    })
+    return map
+  }, [tracks])
+
+  const blocks = useMemo(() => {
+    if (!convexBlocks || !tracks) return []
+    return convexBlocks.map((block) =>
+      convexBlockToTimelineBlock(block, trackMap.get(block.trackId) ?? 0)
+    )
+  }, [convexBlocks, tracks, trackMap])
+
+  const overlayTrack = useMemo(() => {
+    return tracks?.find((t) => t.kind === "overlay")
+  }, [tracks])
+
+  useEffect(() => {
+    if (projectId && tracks && tracks.length === 0) {
+      initializeTracks({ projectId })
     }
-  }, [videoDuration, hasCreatedBaseBlock])
+  }, [projectId, tracks, initializeTracks])
 
-  const handleBlockDragMove = (blockId: string, newStart: number) => {
-    if (blockId === "base-video") return
-    setBlocks(blocks.map((b) => (b.id === blockId ? { ...b, start: newStart } : b)))
-  }
+  const handleBlockDragEnd = useCallback(async (blockId: string, newStart: number) => {
+    await updatePosition({
+      blockId: blockId as Id<"timeline_blocks">,
+      startMs: Math.round(newStart * 1000),
+    })
+  }, [updatePosition])
 
-  const handleBlockDragEnd = () => {
-    // No state changes needed, just a completion callback
-  }
+  const handleBlockResizeStart = useCallback((_blockId: string, _side: "left" | "right") => {
+    // track which side is being resized if needed
+  }, [])
 
-  const handleBlockResizeStart = (blockId: string, side: "left" | "right") => {
-    // This will be handled by the resize hook
-  }
+  const handleBlockResizeEnd = useCallback(async (blockId: string, newStart: number, newDuration: number) => {
+    await updateSize({
+      blockId: blockId as Id<"timeline_blocks">,
+      startMs: Math.round(newStart * 1000),
+      durationMs: Math.round(newDuration * 1000),
+    })
+  }, [updateSize])
 
-  const handleBlockResizeMove = (blockId: string, newStart: number, newDuration: number) => {
-    setBlocks(blocks.map((b) => (b.id === blockId ? { ...b, start: newStart, duration: newDuration } : b)))
-  }
+  const handleBlockDelete = useCallback(async (blockId: string) => {
+    const block = blocks.find((b) => b.id === blockId)
+    if (!block) return
 
-  const handleBlockResizeEnd = () => {
-    // This will be handled by the resize hook
-  }
-
-  const handleBlockDelete = (blockId: string) => {
-    if (blockId === "base-video" && onVideoBlockDelete) {
+    if (block.type === "video" && onVideoBlockDelete) {
       onVideoBlockDelete()
-      setBlocks([])
-      return
     }
-    setBlocks(blocks.filter((b) => b.id !== blockId))
-    if (selectedBlock === blockId) setSelectedBlock(null)
-  }
 
-  const handleBlockDuplicate = (blockId: string) => {
-    if (blockId === "base-video") return
-    const block = blocks.find((b) => b.id === blockId)!
-    const newBlock: TimelineBlock = {
-      ...block,
-      id: `block-${Date.now()}`,
-      start: Math.min(block.start + block.duration + 0.2, videoDuration - 0.5),
-    }
-    setBlocks([...blocks, newBlock])
-  }
+    await removeBlock({ blockId: blockId as Id<"timeline_blocks"> })
 
-  const handleAddBlock = (blockData: BlockData) => {
-    const newBlock: TimelineBlock = {
-      id: `block-${Date.now()}`,
-      ...blockData,
-      start: Math.max(0, currentTime),
-      duration: 1.5,
-      track: TRACK_MAP[blockData.type] || 1,
+    if (selectedBlock === blockId) {
+      setSelectedBlock(null)
     }
-    setBlocks([...blocks, newBlock])
-  }
+  }, [blocks, removeBlock, selectedBlock, setSelectedBlock, onVideoBlockDelete])
+
+  const handleBlockDuplicate = useCallback(async (blockId: string) => {
+    const block = blocks.find((b) => b.id === blockId)
+    if (!block || block.type === "video") return
+
+    const newStart = Math.min(block.start + block.duration + 0.2, videoDuration - 0.5)
+
+    await duplicateBlock({
+      blockId: blockId as Id<"timeline_blocks">,
+      newStartMs: Math.round(newStart * 1000),
+    })
+  }, [blocks, videoDuration, duplicateBlock])
+
+  const handleAddBlock = useCallback(async (blockData: BlockData) => {
+    if (!projectId || !overlayTrack) return
+
+    await createBlock({
+      projectId,
+      trackId: overlayTrack._id,
+      blockType: blockData.type,
+      startMs: Math.round(Math.max(0, currentTime) * 1000),
+      durationMs: Math.round(1.5 * 1000),
+      metadata: {
+        label: blockData.label,
+        color: blockData.color,
+        zoomLevel: blockData.zoomLevel,
+        cropX: blockData.cropX,
+        cropY: blockData.cropY,
+        cropW: blockData.cropW,
+        cropH: blockData.cropH,
+      },
+    })
+  }, [projectId, overlayTrack, currentTime, createBlock])
 
   return {
     blocks,
-    handleBlockDragMove,
     handleBlockDragEnd,
     handleBlockResizeStart,
-    handleBlockResizeMove,
     handleBlockResizeEnd,
     handleBlockDelete,
     handleBlockDuplicate,

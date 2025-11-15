@@ -163,10 +163,54 @@ export const getVideoUrl = query({
         }
 
         const url = await r2.getUrl(args.objectKey, {
-            expiresIn: 60 * 60 * 24 * 30, // 30 days
+            expiresIn: 60 * 60 * 24 * 4, // 4 days
         });
 
         return url;
+    },
+});
+
+// get primary video asset for a project (the first video asset created)
+export const getPrimaryVideoAsset = query({
+    args: {
+        projectId: v.id("projects"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) {
+            throw new Error("Not authenticated");
+        }
+
+        // verify user owns the project
+        const project = await ctx.db.get(args.projectId);
+        if (!project) {
+            throw new Error("Project not found");
+        }
+        if (project.ownerId !== user._id) {
+            throw new Error("Not authorized to view this project's assets");
+        }
+
+        // get the first video asset for this project
+        const videoAsset = await ctx.db
+            .query("assets")
+            .withIndex("byProject", (q) => q.eq("projectId", args.projectId))
+            .filter((q) => q.eq(q.field("type"), "video"))
+            .order("asc")
+            .first();
+
+        if (!videoAsset) {
+            return null;
+        }
+
+        // get the video URL from R2 (4d expiry)
+        const url = await r2.getUrl(videoAsset.objectKey, {
+            expiresIn: 60 * 60 * 24 * 4, // 4 days
+        });
+
+        return {
+            ...videoAsset,
+            url,
+        };
     },
 });
 
