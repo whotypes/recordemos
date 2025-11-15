@@ -6,23 +6,27 @@ import { useVideoUpload } from "@/lib/hooks/use-video-upload"
 import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
-import { Plus, RotateCcw, Video as VideoIcon } from "lucide-react"
+import type { Id } from "convex/_generated/dataModel"
+import { Plus, RotateCcw, Upload, Video as VideoIcon } from "lucide-react"
 import { useRef } from "react"
+import { toast } from "sonner"
 
 interface VideoPanelProps {
+  projectId?: string
   onExport: () => void
 }
 
-export default function VideoPanel({ onExport }: VideoPanelProps) {
-  const { startScreenRecord, stopScreenRecord, isRecording } = useScreenRecorder()
-  const { handleVideoUpload } = useVideoUpload()
+export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
+  const { startScreenRecord, stopScreenRecord, isRecording, recordedVideo, clearRecordedVideo } = useScreenRecorder()
+  const { uploadVideoFile, projectVerification } = useVideoUpload(projectId as Id<"projects"> | undefined)
   const videoSrc = useVideoPlayerStore((state) => state.videoSrc)
   const videoFileName = useVideoPlayerStore((state) => state.videoFileName)
   const videoFileSize = useVideoPlayerStore((state) => state.videoFileSize)
   const videoFileFormat = useVideoPlayerStore((state) => state.videoFileFormat)
+  const cloudUploadEnabled = useVideoPlayerStore((state) => state.cloudUploadEnabled)
   const setVideoFileName = useVideoPlayerStore((state) => state.setVideoFileName)
-  const setVideoFileSize = useVideoPlayerStore((state) => state.setVideoFileSize)
   const setVideoFileFormat = useVideoPlayerStore((state) => state.setVideoFileFormat)
+  const setCurrentClipAssetId = useVideoPlayerStore((state) => state.setCurrentClipAssetId)
   const resetVideoPlayer = useVideoPlayerStore((state) => state.reset)
   const resetVideoOptions = useVideoOptionsStore((state) => state.reset)
   const resetTransforms = useVideoOptionsStore((state) => state.resetTransforms)
@@ -32,8 +36,76 @@ export default function VideoPanel({ onExport }: VideoPanelProps) {
   const setBlocks = useTimelineBlocksStore((state) => state.setBlocks)
   const uploadRef = useRef<HTMLInputElement>(null)
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleVideoUpload(e)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please select a video file")
+      return
+    }
+
+    if (!cloudUploadEnabled || !projectId) {
+      // just preview locally without uploading
+      await uploadVideoFile(file)
+      if (!cloudUploadEnabled) {
+        toast.info("Video loaded for local editing only. Enable cloud upload to save to project.")
+      } else {
+        toast.info("Video loaded for preview only. Create a project to save your work.")
+      }
+    } else {
+      // check if project verification failed
+      if (projectVerification && !projectVerification.valid) {
+        toast.error(projectVerification.error || "Cannot upload to this project")
+        e.target.value = ""
+        return
+      }
+
+      // upload to R2 and create asset
+      await uploadVideoFile(file, {
+        projectId: projectId as Id<"projects">,
+        onUploadComplete: (assetId) => {
+          setCurrentClipAssetId(assetId)
+        },
+      })
+    }
+
+    e.target.value = ""
+  }
+
+  const handleAddRecordingToProject = async () => {
+    if (!recordedVideo) {
+      toast.error("No recording available")
+      return
+    }
+
+    if (!cloudUploadEnabled) {
+      toast.error("Cloud upload is disabled. Enable it in the navbar to upload recordings.")
+      return
+    }
+
+    if (!projectId) {
+      toast.error("Please create or select a project first to save your recording")
+      return
+    }
+
+    // check if project verification failed
+    if (projectVerification && !projectVerification.valid) {
+      toast.error(projectVerification.error || "Cannot upload to this project")
+      return
+    }
+
+    const file = new File([recordedVideo.blob], recordedVideo.fileName, {
+      type: "video/webm",
+    })
+
+    await uploadVideoFile(file, {
+      projectId: projectId as Id<"projects">,
+      onUploadComplete: (assetId) => {
+        setCurrentClipAssetId(assetId)
+        clearRecordedVideo()
+      },
+    })
   }
 
   const handleReset = () => {
@@ -46,6 +118,7 @@ export default function VideoPanel({ onExport }: VideoPanelProps) {
       URL.revokeObjectURL(currentSrc)
     }
 
+    clearRecordedVideo()
     resetVideoPlayer()
     resetVideoOptions()
     resetTransforms()
@@ -149,6 +222,27 @@ export default function VideoPanel({ onExport }: VideoPanelProps) {
 
         {videoSrc && !isRecording && (
           <>
+            {recordedVideo && projectId && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
+                      onClick={handleAddRecordingToProject}
+                    >
+                      <div className='flex gap-1 items-center justify-center'>
+                        <Upload className="cursor-pointer text-primary/50 focus:ring-1 group-hover:text-primary/80" size={16} />
+                        <p className='text-muted-foreground'>Add to Project</p>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side={"top"}>
+                    <span>Upload recording to project</span>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
