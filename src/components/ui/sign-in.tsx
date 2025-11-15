@@ -359,10 +359,6 @@ export const SignInComponent = ({ logo = <DefaultLogo />, brandName = "RecordDem
 
                 setModalStatus('success');
 
-            } else {
-
-                console.log(result);
-
             }
 
         } catch (err: any) {

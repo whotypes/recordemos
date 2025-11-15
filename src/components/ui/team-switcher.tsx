@@ -1,10 +1,16 @@
+import { UpgradeModal } from "@/components/autumn/upgrade-modal"
+import { CreateProjectModal } from "@/components/create-project-modal"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
-import { useSubscriptionStore } from "@/lib/subscription-store"
+import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
 import { cn } from "@/lib/utils"
 import { useUser } from "@clerk/tanstack-react-start"
-import { Link } from "@tanstack/react-router"
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query"
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
+import { Link, useNavigate } from "@tanstack/react-router"
+import { useCustomer } from "autumn-js/react"
+import { api } from "convex/_generated/api"
 import { Check, ChevronDown, CreditCard, Plus, Sparkles } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -25,7 +31,7 @@ interface TeamSwitcherProps {
   projects?: Project[]
   activeProjectId?: string
   onProjectSelect?: (projectId: string) => void
-  onCreateProject?: () => void
+    onCreateProject?: () => void // kept for backwards compatibility, but handled internally
   onUpgrade?: () => void
 }
 
@@ -34,22 +40,45 @@ export function TeamSwitcher({
   projects = [],
   activeProjectId,
   onProjectSelect,
-  onCreateProject,
+    onCreateProject: _onCreateProject, // kept for backwards compatibility, but handled internally
   onUpgrade,
 }: TeamSwitcherProps) {
   const { user } = useUser()
-  const isPremium = useSubscriptionStore((state) => state.isPremium)
+    const navigate = useNavigate()
+    const queryClient = useQueryClient()
+  const { customer } = useCustomer({ errorOnNotFound: false })
   const [open, setOpen] = useState(false)
+    const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
+    const [createModalOpen, setCreateModalOpen] = useState(false)
+    const [isCreating, setIsCreating] = useState(false)
+
+    const { data: convexProjects } = useSuspenseQuery(
+        convexQuery(api.projects.listForCurrentUser, {}),
+    )
+
+    const createProjectMutationFn = useConvexMutation(api.projects.create)
+    const createProjectMutation = useMutation({
+        mutationFn: createProjectMutationFn,
+    })
+
+  const isPro = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
 
   const accountData: Account = account || {
     username: user?.username || user?.emailAddresses[0]?.emailAddress?.split("@")[0] || "user",
     email: user?.emailAddresses[0]?.emailAddress || "",
-    plan: isPremium ? "pro" : "free",
+    plan: isPro ? "pro" : "free",
   }
 
-  const defaultProjects: Project[] = projects.length > 0 ? projects : [
-    { id: "1", name: "My First Project" },
-  ]
+    const projectsList: Project[] = Array.isArray(convexProjects)
+        ? convexProjects.map((p) => ({
+            id: p._id,
+            name: p.name,
+        }))
+        : projects.length > 0
+            ? projects
+            : []
+
+    const defaultProjects: Project[] = projectsList.length > 0 ? projectsList : []
 
   const activeProject = defaultProjects.find((p) => p.id === activeProjectId) || defaultProjects[0]
   const maxProjects = accountData.plan === "free" ? 1 : 10
@@ -57,17 +86,61 @@ export function TeamSwitcher({
 
   const handleProjectSelect = (projectId: string) => {
     onProjectSelect?.(projectId)
+      navigate({
+          to: "/studio",
+          search: { projectId },
+      })
     setOpen(false)
   }
 
   const handleCreateProject = () => {
-    if (!isAtLimit) {
-      onCreateProject?.()
+      if (!isAtLimit && user) {
       setOpen(false)
+            navigate({
+                to: "/studio",
+                search: { projectId: undefined },
+            })
+            setTimeout(() => {
+                setCreateModalOpen(true)
+            }, 100)
+        }
+    }
+
+    const handleCreateProjectSubmit = async (name: string) => {
+        if (!user || isCreating) return
+
+        setIsCreating(true)
+        try {
+            const projectId = await createProjectMutation.mutateAsync({ name })
+
+            await queryClient.invalidateQueries({
+                queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+            })
+
+            await queryClient.refetchQueries({
+                queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+            })
+
+            toast.success("Project created successfully!")
+
+            navigate({
+                to: "/studio",
+                search: { projectId },
+            })
+
+            setCreateModalOpen(false)
+        } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : "Failed to create project"
+            toast.error(errorMessage)
+            throw error
+        } finally {
+            setIsCreating(false)
     }
   }
 
   const handleUpgrade = () => {
+      setUpgradeModalOpen(true)
     onUpgrade?.()
     setOpen(false)
   }
@@ -172,24 +245,30 @@ export function TeamSwitcher({
               </span>
             </div>
             <div className="space-y-0.5 max-h-64 overflow-y-auto">
-              {defaultProjects.map((project) => (
-                <button
-                  key={project.id}
-                  onClick={() => handleProjectSelect(project.id)}
-                  className={cn(
-                    "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm transition-colors",
-                    "hover:bg-accent hover:text-accent-foreground",
-                    activeProjectId === project.id
-                      ? "bg-accent text-accent-foreground"
-                      : "text-foreground"
-                  )}
-                >
-                  <span className="truncate">{project.name}</span>
-                  {activeProjectId === project.id && (
-                    <Check className="h-4 w-4 shrink-0 ml-2" />
-                  )}
-                </button>
-              ))}
+                              {defaultProjects.length === 0 ? (
+                                  <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                                      No projects yet
+                                  </div>
+                              ) : (
+                                  defaultProjects.map((project) => (
+                                      <button
+                                          key={project.id}
+                                          onClick={() => handleProjectSelect(project.id)}
+                                          className={cn(
+                                              "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm transition-colors",
+                                              "hover:bg-accent hover:text-accent-foreground",
+                                              activeProjectId === project.id
+                                                  ? "bg-accent text-accent-foreground"
+                                                  : "text-foreground"
+                                          )}
+                                      >
+                                          <span className="truncate">{project.name}</span>
+                                          {activeProjectId === project.id && (
+                                              <Check className="h-4 w-4 shrink-0 ml-2" />
+                                          )}
+                                      </button>
+                                  ))
+                              )}
             </div>
 
             <Separator className="my-2" />
@@ -200,9 +279,9 @@ export function TeamSwitcher({
                 size="sm"
                 className="w-full justify-start h-9"
                 onClick={handleCreateProject}
-                disabled={isAtLimit}
+                                  disabled={isAtLimit}
               >
-                <Plus className="h-4 w-4 mr-2" />
+                                  <Plus className="h-4 w-4 mr-2" />
                 Create Project
               </Button>
               {isAtLimit && (
@@ -217,6 +296,16 @@ export function TeamSwitcher({
         </div>
       </PopoverContent>
     </Popover>
+          <UpgradeModal
+              open={upgradeModalOpen}
+              onOpenChange={setUpgradeModalOpen}
+          />
+          <CreateProjectModal
+              open={createModalOpen}
+              onOpenChange={setCreateModalOpen}
+              onCreate={handleCreateProjectSubmit}
+              loading={isCreating}
+          />
     </div>
   )
 }

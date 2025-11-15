@@ -7,17 +7,59 @@ import StudioNavbar from "@/components/ui/studio-navbar"
 import { useVideoPlayer } from "@/lib/hooks/use-video-player"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from "react"
+import { useAuth } from "@clerk/tanstack-react-start"
+import { convexQuery } from "@convex-dev/react-query"
+import { useQuery } from "@tanstack/react-query"
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { api } from "convex/_generated/api"
+import { useEffect, useState } from "react"
 
 export const Route = createFileRoute("/studio")({
     ssr: false,
+    validateSearch: (search: Record<string, unknown>) => {
+        return {
+            projectId: (search.projectId as string) || undefined,
+        }
+    },
+    loader: async (opts) => {
+        // Only prefetch if user is authenticated
+        const userId = opts.context.userId;
+        if (userId) {
+            await opts.context.queryClient.ensureQueryData(
+                convexQuery(api.projects.listForCurrentUser, {}),
+            );
+        }
+    },
     component: Studio,
 })
 
 function Studio() {
+    const { projectId } = Route.useSearch()
+    const navigate = useNavigate()
+    const { isLoaded: isAuthLoaded, isSignedIn } = useAuth()
     const [selectedBlock, setSelectedBlock] = useState<string | null>(null)
     const [showExport, setShowExport] = useState(false)
+
+    const { data: convexProjects } = useQuery({
+        ...convexQuery(api.projects.listForCurrentUser, {}),
+        enabled: isAuthLoaded && isSignedIn,
+    });
+
+    useEffect(() => {
+        if (!isAuthLoaded || !isSignedIn || !convexProjects) {
+            return
+        }
+
+        const projects = Array.isArray(convexProjects) ? convexProjects : []
+
+        if (!projectId && projects.length > 0) {
+            navigate({
+                to: "/studio",
+                search: { projectId: projects[0]._id },
+                replace: true,
+            })
+        }
+    }, [projectId, convexProjects, navigate, isAuthLoaded, isSignedIn])
 
     const {
         currentTime,
@@ -47,7 +89,7 @@ function Studio() {
 
     return (
         <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
-            <StudioNavbar />
+            <StudioNavbar activeProjectId={projectId} />
 
             <div className="flex flex-1 overflow-hidden gap-0">
                 <div className="flex-1 max-w-96 min-w-xs border-r border-border bg-card sidebar-scrollbar">

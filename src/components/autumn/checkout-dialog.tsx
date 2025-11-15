@@ -352,8 +352,6 @@ const PrepaidItem = ({
 				dialog: CheckoutDialog,
 			});
 
-			console.log('checkout data', data);
-
 			if (error) {
 				console.error(error);
 				return;

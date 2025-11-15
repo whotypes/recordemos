@@ -5,6 +5,7 @@ import {
 	FreePricingCards,
 	ProPricingCards,
 } from "@/components/autumn/pricing-cards";
+import { CreateProjectModal } from "@/components/create-project-modal";
 import { HeroTitle } from "@/components/marketing/block";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,21 +18,120 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { SignedIn, SignedOut, useAuth, useClerk, useUser } from "@clerk/tanstack-react-start";
+import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { api } from "convex/_generated/api";
 import { User } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
 	component: Home,
+	loader: async (opts) => {
+		const userId = opts.context.userId;
+		if (userId) {
+			await opts.context.queryClient.ensureQueryData(
+				convexQuery(api.projects.listForCurrentUser, {}),
+			);
+		}
+	},
 });
 
 function Home() {
 	const { user } = useUser();
+	const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
 	const { signOut } = useClerk();
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const [createModalOpen, setCreateModalOpen] = useState(false);
+	const [isCreating, setIsCreating] = useState(false);
+
+	const { data: convexProjects } = useQuery({
+		...convexQuery(api.projects.listForCurrentUser, {}),
+		enabled: isAuthLoaded && isSignedIn && !!user,
+	});
+
+	const createProjectMutationFn = useConvexMutation(api.projects.create);
+	const createProjectMutation = useMutation({
+		mutationFn: createProjectMutationFn,
+	});
 
 	const handleSignOut = async () => {
-		await signOut();
-		window.location.href = "/";
+		await signOut({ redirectUrl: "/" });
+	};
+
+	const handleGetStarted = async () => {
+		if (!user) {
+			navigate({ to: "/sign-in/$" });
+			return;
+		}
+
+		const projects = Array.isArray(convexProjects) ? convexProjects : [];
+
+		if (projects.length === 0) {
+			setIsCreating(true);
+			try {
+				const projectId = await createProjectMutation.mutateAsync({
+					name: "My First Project",
+				});
+
+				await queryClient.invalidateQueries({
+					queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+				});
+
+				await queryClient.refetchQueries({
+					queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+				});
+
+				navigate({
+					to: "/studio",
+					search: { projectId },
+				});
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : "Failed to create project";
+				toast.error(errorMessage);
+			} finally {
+				setIsCreating(false);
+			}
+		} else {
+			setCreateModalOpen(true);
+		}
+	};
+
+	const handleCreateProjectSubmit = async (name: string) => {
+		if (!user || isCreating) return;
+
+		setIsCreating(true);
+		try {
+			const projectId = await createProjectMutation.mutateAsync({ name });
+
+			await queryClient.invalidateQueries({
+				queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+			});
+
+			await queryClient.refetchQueries({
+				queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+			});
+
+			toast.success("Project created successfully!");
+
+			navigate({
+				to: "/studio",
+				search: { projectId },
+			});
+
+			setCreateModalOpen(false);
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Failed to create project";
+			toast.error(errorMessage);
+			throw error;
+		} finally {
+			setIsCreating(false);
+		}
 	};
 
 	return (
@@ -85,9 +185,13 @@ function Home() {
 									</div>
 									<DropdownMenuSeparator />
 									<DropdownMenuItem asChild>
-										<Link to="/studio" className="cursor-pointer">
+										<button
+											type="button"
+											onClick={handleGetStarted}
+											className="w-full cursor-pointer text-left"
+										>
 											Studio
-										</Link>
+										</button>
 									</DropdownMenuItem>
 									<DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
 										Sign out
@@ -105,9 +209,14 @@ function Home() {
 						</Link>
 					</SignedOut>
 					<SignedIn>
-						<Link to="/studio" className={buttonVariants({ size: "sm" })}>
-							Get Started
-						</Link>
+						<button
+							type="button"
+							onClick={handleGetStarted}
+							className={buttonVariants({ size: "sm" })}
+							disabled={isCreating}
+						>
+							{isCreating ? "Creating..." : "Get Started"}
+						</button>
 					</SignedIn>
 					<SignedOut>
 						<Link to="/sign-in/$" className={buttonVariants({ size: "sm" })}>
@@ -139,12 +248,14 @@ function Home() {
 					<HeroTitle />
 					<div className="mt-2 flex w-full items-center justify-center gap-2">
 						<SignedIn>
-							<Link
-								to="/studio"
+							<button
+								type="button"
+								onClick={handleGetStarted}
 								className={cn(buttonVariants({ size: "sm" }), "hidden sm:flex")}
+								disabled={isCreating}
 							>
-								Get Started
-							</Link>
+								{isCreating ? "Creating..." : "Get Started"}
+							</button>
 						</SignedIn>
 						<SignedOut>
 							<Link
@@ -575,6 +686,13 @@ function Home() {
 			/>
 			<div className="base-grid fixed h-screen w-screen opacity-40" />
 			<div className="fixed bottom-0 h-screen w-screen bg-linear-to-t from-[hsl(var(--card))] to-transparent" />
+
+			<CreateProjectModal
+				open={createModalOpen}
+				onOpenChange={setCreateModalOpen}
+				onCreate={handleCreateProjectSubmit}
+				loading={isCreating}
+			/>
 		</div>
 	);
 }

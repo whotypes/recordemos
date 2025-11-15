@@ -3,6 +3,10 @@ import { createStart } from "@tanstack/react-start";
 
 export const startInstance = createStart(() => {
 	return {
-		requestMiddleware: [clerkMiddleware()],
+		requestMiddleware: [
+			clerkMiddleware({
+				secretKey: process.env.CLERK_SECRET_KEY,
+			}),
+		],
 	};
 });

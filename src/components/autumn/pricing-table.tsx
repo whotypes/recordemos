@@ -76,24 +76,19 @@ export function PricingTable({
                   product.scenario === "scheduled",
 
                 onClick: async () => {
-                  console.log('onClick', product.id, customer);
                   if (product.id && customer) {
-                    console.log('Calling checkout with productId:', product.id);
                     const result = await checkout({
                       productId: product.id,
                       dialog: CheckoutDialog,
                       successUrl: window.location.origin + '/studio',
                     });
-                    console.log('Checkout result:', result);
 
                     if (result?.data?.url && !product.properties?.is_free) {
                       window.location.href = result.data.url;
                     }
                   } else if (product.display?.button_url) {
-                    console.log('button_url', product.display?.button_url);
                     window.open(product.display?.button_url, "_blank");
                   }
-                  console.log('onClick end', product.id, customer);
                 },
               }}
             />

@@ -2,13 +2,49 @@ import { UserJSON } from "@clerk/backend";
 import type { Product } from "autumn-js";
 import { v, Validator } from "convex/values";
 import { api } from "./_generated/api";
-import { internalAction, internalMutation, query, QueryCtx } from "./_generated/server";
+import { internalAction, internalMutation, mutation, query, QueryCtx } from "./_generated/server";
 import { autumn } from "./autumn";
 
 export const current = query({
   args: {},
   handler: async (ctx) => {
     return await getCurrentUser(ctx);
+  },
+});
+
+export const ensureCurrentUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    let user = await userByExternalId(ctx, identity.subject);
+    if (!user) {
+      const email = typeof identity.email === "string"
+        ? identity.email
+        : typeof identity.emailVerified === "string"
+          ? identity.emailVerified
+          : "unknown@example.com";
+      const username = identity.nickname || identity.name || email.split("@")[0] || "user";
+      const image = identity.pictureUrl || "";
+
+      const baseUsername = await generateUniqueUsername(ctx, username);
+
+      const userAttributes = {
+        externalId: identity.subject,
+        username: baseUsername,
+        email,
+        image,
+        planId: "free" as const,
+      };
+
+      const userId = await ctx.db.insert("users", userAttributes);
+      user = await ctx.db.get(userId);
+    }
+
+    return user;
   },
 });
 
@@ -24,6 +60,17 @@ export const attachFreePlan = internalAction({
   args: { clerkUserId: v.string() },
   async handler(ctx, { clerkUserId }) {
     try {
+      const user = await ctx.runQuery(api.users.getByExternalId, {
+        externalId: clerkUserId,
+      });
+
+      const customerData = user
+        ? {
+          name: user.username || undefined,
+          email: user.email || undefined,
+        }
+        : undefined;
+
       const productsResult = await ctx.runAction(api.autumn.listProducts, {});
 
       if (productsResult.error) {
@@ -40,18 +87,6 @@ export const attachFreePlan = internalAction({
       const freePlan = productsList.find((product: Product) => product.properties?.is_free === true);
 
       if (freePlan) {
-        const user = await ctx.runQuery(api.users.getByExternalId, {
-          externalId: clerkUserId,
-        });
-
-        const customerData = user
-          ? {
-              name: user.username || undefined,
-              email: user.email || undefined,
-            }
-          : undefined;
-
-
         const attachResult = await autumn.attach(
           { ...ctx, customerId: clerkUserId, customerData },
           {
@@ -60,9 +95,9 @@ export const attachFreePlan = internalAction({
         );
 
         if (attachResult.error) {
-          console.error(`Failed to attach free plan: ${attachResult.error.message}`);
-        } else {
-          console.log(`Attached free plan ${freePlan.id} to user ${clerkUserId}`);
+          if (!attachResult.error.message?.includes("already attached")) {
+            console.error(`Failed to attach free plan: ${attachResult.error.message}`);
+          }
         }
       } else {
         console.warn(`No free plan found for user ${clerkUserId}`);
@@ -76,10 +111,22 @@ export const attachFreePlan = internalAction({
 async function generateUniqueUsername(ctx: QueryCtx, baseUsername: string) {
   let username = baseUsername;
   let count = 1;
-  while (await userByExternalId(ctx, username)) {
+
+  // check if username already exists
+  while (true) {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("byUsername", (q) => q.eq("username", username))
+      .first();
+
+    if (!existing) {
+      break;
+    }
+
     username = `${baseUsername}${count}`;
     count++;
   }
+
   return username;
 }
 
@@ -91,19 +138,29 @@ export const upsertFromClerk = internalMutation({
     const image = data.image_url ?? data.external_accounts[0].image_url;
     const username = await generateUniqueUsername(ctx, baseUsername);
 
-    const userAttributes = {
-      externalId: data.id,
-      username,
-      email,
-      image,
-    };
-
     const user = await userByExternalId(ctx, data.id);
-    if (user === null) {
+    const isNewUser = user === null;
+
+    if (isNewUser) {
+      const userAttributes = {
+        externalId: data.id,
+        username,
+        email,
+        image,
+        planId: "free" as const,
+      };
       await ctx.db.insert("users", userAttributes);
     } else {
+      const userAttributes = {
+        externalId: data.id,
+        username,
+        email,
+        image,
+      };
       await ctx.db.patch(user._id, userAttributes);
     }
+
+    return { isNewUser };
   },
 });
 
@@ -133,7 +190,10 @@ export async function getCurrentUser(ctx: QueryCtx) {
   if (identity === null) {
     return null;
   }
-  return await userByExternalId(ctx, identity.subject);
+
+  const user = await userByExternalId(ctx, identity.subject);
+
+  return user;
 }
 
 async function userByExternalId(ctx: QueryCtx, externalId: string) {

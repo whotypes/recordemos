@@ -1,16 +1,15 @@
 "use client"
 
-import { useSubscriptionStore } from "@/lib/subscription-store"
 import { Check } from "lucide-react"
 import Modal from "@/components/ui/modal"
 
 export default function PremiumUpsellModal() {
-  const showPremiumModal = useSubscriptionStore((state) => state.showPremiumModal)
-  const setShowPremiumModal = useSubscriptionStore((state) => state.setShowPremiumModal)
-  const setPremium = useSubscriptionStore((state) => state.setPremium)
+  // This component is deprecated since we now use Autumn's checkout flow
+  // Keeping it for backwards compatibility but it should not be used
+  const showPremiumModal = false
+  const setShowPremiumModal = () => {}
 
   const handleUpgrade = () => {
-    setPremium(true)
     setShowPremiumModal(false)
   }
 

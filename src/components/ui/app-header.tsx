@@ -1,4 +1,5 @@
-import { useSubscriptionStore } from "@/lib/subscription-store"
+import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
+import { useCustomer } from "autumn-js/react"
 
 interface AppHeaderProps {
   videoSrc: string | null
@@ -17,7 +18,8 @@ export default function AppHeader({
   isRecording,
   onExport,
 }: AppHeaderProps) {
-  const isPremium = useSubscriptionStore((state) => state.isPremium)
+  const { customer } = useCustomer({ errorOnNotFound: false })
+  const isPremium = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
 
   return (
     <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
