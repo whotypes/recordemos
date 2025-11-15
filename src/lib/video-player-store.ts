@@ -1,64 +1,95 @@
-import { create } from "zustand"
+import type { Id } from "convex/_generated/dataModel";
+import { create } from "zustand";
 
-let clearFileStatusesRef: (() => void) | null = null
+let clearFileStatusesRef: (() => void) | null = null;
 
 export const setClearFileStatusesRef = (fn: (() => void) | null) => {
-  clearFileStatusesRef = fn
-}
+  clearFileStatusesRef = fn;
+};
 
 interface VideoPlayerState {
-  currentTime: number
-  setCurrentTime: (time: number) => void
-  isPlaying: boolean
-  setIsPlaying: (playing: boolean) => void
-  videoDuration: number
-  setVideoDuration: (duration: number) => void
-  videoSrc: string | null
-  setVideoSrc: (src: string | null) => void
-  videoFileName: string | null
-  setVideoFileName: (name: string | null) => void
-  videoFileSize: number | null
-  setVideoFileSize: (size: number | null) => void
-  videoFileFormat: string | null
-  setVideoFileFormat: (format: string | null) => void
-  loop: boolean
-  setLoop: (loop: boolean) => void
-  muted: boolean
-  setMuted: (muted: boolean) => void
-  // Helper functions
-  scrubToTime: (time: number, videoRef: React.RefObject<HTMLVideoElement | null>) => void
-  reset: () => void
+  // playback state
+  currentTime: number;
+  setCurrentTime: (time: number) => void;
+  isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
+  videoDuration: number;
+  setVideoDuration: (duration: number) => void;
+  loop: boolean;
+  setLoop: (loop: boolean) => void;
+  muted: boolean;
+  setMuted: (muted: boolean) => void;
+
+  // current clip reference
+  currentClipAssetId: Id<"assets"> | null;
+  setCurrentClipAssetId: (assetId: Id<"assets"> | null) => void;
+
+  // local blob URL for playback (not persisted)
+  videoSrc: string | null;
+  setVideoSrc: (src: string | null) => void;
+
+  // temporary file metadata (for display purposes only)
+  videoFileName: string | null;
+  setVideoFileName: (name: string | null) => void;
+  videoFileSize: number | null;
+  setVideoFileSize: (size: number | null) => void;
+  videoFileFormat: string | null;
+  setVideoFileFormat: (format: string | null) => void;
+
+  // cloud upload preference
+  cloudUploadEnabled: boolean;
+  setCloudUploadEnabled: (enabled: boolean) => void;
+
+  // helper functions
+  scrubToTime: (
+    time: number,
+    videoRef: React.RefObject<HTMLVideoElement | null>
+  ) => void;
+  reset: () => void;
 }
 
 export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
+  // playback state
   currentTime: 0,
   setCurrentTime: (time) => set({ currentTime: time }),
   isPlaying: false,
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   videoDuration: 0,
   setVideoDuration: (duration) => set({ videoDuration: duration }),
+  loop: false,
+  setLoop: (loop) => set({ loop }),
+  muted: false,
+  setMuted: (muted) => set({ muted }),
+
+  // current clip reference
+  currentClipAssetId: null,
+  setCurrentClipAssetId: (assetId) => set({ currentClipAssetId: assetId }),
+
+  // local blob URL
   videoSrc: null,
   setVideoSrc: (src) => set({ videoSrc: src }),
+
+  // temporary file metadata
   videoFileName: null,
   setVideoFileName: (name) => set({ videoFileName: name }),
   videoFileSize: null,
   setVideoFileSize: (size) => set({ videoFileSize: size }),
   videoFileFormat: null,
   setVideoFileFormat: (format) => set({ videoFileFormat: format }),
-  loop: false,
-  setLoop: (loop) => set({ loop }),
-  muted: false,
-  setMuted: (muted) => set({ muted }),
+
+  // cloud upload preference
+  cloudUploadEnabled: true,
+  setCloudUploadEnabled: (enabled) => set({ cloudUploadEnabled: enabled }),
 
   scrubToTime: (time, videoRef) => {
     if (videoRef.current) {
-      videoRef.current.currentTime = time
+      videoRef.current.currentTime = time;
     }
-    set({ currentTime: time })
+    set({ currentTime: time });
   },
 
   reset: () => {
-    clearFileStatusesRef?.()
+    clearFileStatusesRef?.();
     set({
       currentTime: 0,
       isPlaying: false,
@@ -68,7 +99,8 @@ export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
       videoFileSize: null,
       videoFileFormat: null,
       loop: false,
-      muted: false
-    })
+      muted: false,
+      currentClipAssetId: null,
+    });
   },
-}))
+}));

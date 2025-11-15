@@ -26,11 +26,20 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { TeamSwitcher } from "@/components/ui/team-switcher"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start"
 import { Link as RouterLink, useLocation } from "@tanstack/react-router"
 import { useCustomer } from "autumn-js/react"
 import {
   BellIcon,
+  Cloud,
+  CloudOff,
   CreditCard,
   LogOut,
   Settings,
@@ -191,6 +200,47 @@ function UserProfileDropdown({
   )
 }
 
+function CloudUploadToggle() {
+  const cloudUploadEnabled = useVideoPlayerStore((state) => state.cloudUploadEnabled)
+  const setCloudUploadEnabled = useVideoPlayerStore((state) => state.setCloudUploadEnabled)
+
+  const handleToggle = () => {
+    setCloudUploadEnabled(!cloudUploadEnabled)
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={handleToggle}
+            className={cn(
+              "h-8 w-8 flex items-center justify-center transition-colors rounded-md",
+              cloudUploadEnabled
+                ? "text-foreground hover:bg-accent"
+                : "text-muted-foreground hover:bg-accent"
+            )}
+            aria-label={cloudUploadEnabled ? "Cloud upload enabled" : "Cloud upload disabled"}
+          >
+            {cloudUploadEnabled ? (
+              <Cloud className="h-4 w-4" />
+            ) : (
+              <CloudOff className="h-4 w-4" />
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <span>
+            {cloudUploadEnabled
+              ? "Cloud upload enabled - videos will be saved to the project"
+              : "Cloud upload disabled - videos will only be edited locally"}
+          </span>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 const navigationLinks = [
   {
     name: "Menu",
@@ -232,6 +282,7 @@ export default function StudioNavbar({ activeProjectId }: StudioNavbarProps = {}
 
         <div className="flex items-center justify-end gap-4 md:flex-1">
           <div className="hidden items-center gap-1.5 sm:flex">
+            <CloudUploadToggle />
             <Link
               href="#"
               className={cn(

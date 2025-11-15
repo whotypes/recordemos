@@ -1,8 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
-import { useCustomer } from "autumn-js/react"
-import { Frame, Monitor, Move, Palette, Video, ZoomIn, Film } from "lucide-react"
+import { Film, Frame, Monitor, Move, Palette } from "lucide-react"
 import BackgroundSelector from "./background-selector"
 import BrowserAppearance from "./browser-appearance"
 import SidebarButton from "./sidebar-button"
@@ -11,22 +9,20 @@ import VideoPanel from "./video-panel"
 import ZoomAspectPanel from "./zoom-aspect-panel"
 
 interface EditingPanelProps {
+  projectId?: string
   onExport?: () => void
 }
 
-export default function EditingPanel({ onExport }: EditingPanelProps) {
+export default function EditingPanel({ projectId, onExport }: EditingPanelProps) {
   const activeTabIndex = useVideoOptionsStore((state) => state.activeTabIndex)
   const setActiveTabIndex = useVideoOptionsStore((state) => state.setActiveTabIndex)
-  const hideToolbars = useVideoOptionsStore((state) => state.hideToolbars)
-  const { customer } = useCustomer({ errorOnNotFound: false })
-  const isPremium = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
 
   const tabs = [
     {
       id: 'video',
       text: 'Video',
       icon: <Film size={20} />,
-      component: <VideoPanel onExport={onExport || (() => {})} />,
+      component: <VideoPanel projectId={projectId} onExport={onExport || (() => { })} />,
     },
     {
       id: 'background',
