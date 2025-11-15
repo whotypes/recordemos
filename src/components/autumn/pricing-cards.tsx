@@ -24,6 +24,7 @@ import {
 	usePricingTable,
 } from "autumn-js/react";
 import { CheckCircle2, Loader2, Users, XCircleIcon } from "lucide-react";
+import { useState } from "react";
 
 interface PricingCardsProps {
 	productDetails?: ProductDetails[];
@@ -142,26 +143,36 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 	const priceText = mainPriceDisplay?.primary_text || '';
 	const periodText = mainPriceDisplay?.secondary_text || '';
 
+	const [loading, setLoading] = useState(false);
+
 	const handleClick = async () => {
 		console.log('handleClick', basicPlan.id, customer);
-		if (basicPlan.id && customer) {
-			const result = await checkout({
-				productId: basicPlan.id,
-				dialog: CheckoutDialog,
-				successUrl: window.location.origin + '/studio',
-			});
+		setLoading(true);
+		try {
+			if (basicPlan.id && customer) {
+				const result = await checkout({
+					productId: basicPlan.id,
+					dialog: CheckoutDialog,
+					successUrl: window.location.origin + '/studio',
+				});
 
-			if (result?.data?.url && !basicPlan.properties?.is_free) {
-				window.location.href = result.data.url;
+				if (result?.data?.url && !basicPlan.properties?.is_free) {
+					window.location.href = result.data.url;
+				}
+			} else if (basicPlan.display?.button_url) {
+				window.open(basicPlan.display?.button_url, '_blank');
 			}
-		} else if (basicPlan.display?.button_url) {
-			window.open(basicPlan.display?.button_url, '_blank');
+		} catch (error) {
+			console.error('Checkout failed:', error);
+		} finally {
+			setLoading(false);
 		}
 	};
 
 	const isDisabled =
 		(basicPlan.scenario === 'active' && !basicPlan.properties.updateable) ||
-		basicPlan.scenario === 'scheduled';
+		basicPlan.scenario === 'scheduled' ||
+		loading;
 
 	return (
 		<Card className={cn(isRecommended && 'ring-2 ring-primary')}>
@@ -186,7 +197,7 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 				</Price>
 				<Button
 					className={cn(
-						'w-full font-semibold text-white',
+						'w-full font-semibold text-white cursor-pointer relative z-10',
 						isRecommended
 							? 'bg-gradient-to-b from-orange-500 to-orange-600 shadow-[0_10px_25px_rgba(255,115,0,0.3)]'
 							: '',
@@ -194,7 +205,14 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 					onClick={handleClick}
 					disabled={isDisabled}
 				>
-					{productDisplay?.button_text || buttonText || 'Get Started'}
+					{loading ? (
+						<>
+							<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+							Processing...
+						</>
+					) : (
+						productDisplay?.button_text || buttonText || 'Get Started'
+					)}
 				</Button>
 			</Header>
 			<Body>
@@ -289,26 +307,36 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 	const priceText = mainPriceDisplay?.primary_text || '';
 	const periodText = mainPriceDisplay?.secondary_text || '';
 
+	const [loading, setLoading] = useState(false);
+
 	const handleClick = async () => {
 		console.log('handleClick', proPlan.id, customer);
-		if (proPlan.id && customer) {
-			const result = await checkout({
-				productId: proPlan.id,
-				dialog: CheckoutDialog,
-				successUrl: window.location.origin + '/studio',
-			});
+		setLoading(true);
+		try {
+			if (proPlan.id && customer) {
+				const result = await checkout({
+					productId: proPlan.id,
+					dialog: CheckoutDialog,
+					successUrl: window.location.origin + '/studio',
+				});
 
-			if (result?.data?.url && !proPlan.properties?.is_free) {
-				window.location.href = result.data.url;
+				if (result?.data?.url && !proPlan.properties?.is_free) {
+					window.location.href = result.data.url;
+				}
+			} else if (proPlan.display?.button_url) {
+				window.open(proPlan.display?.button_url, '_blank');
 			}
-		} else if (proPlan.display?.button_url) {
-			window.open(proPlan.display?.button_url, '_blank');
+		} catch (error) {
+			console.error('Checkout failed:', error);
+		} finally {
+			setLoading(false);
 		}
 	};
 
 	const isDisabled =
 		(proPlan.scenario === 'active' && !proPlan.properties.updateable) ||
-		proPlan.scenario === 'scheduled';
+		proPlan.scenario === 'scheduled' ||
+		loading;
 
 	return (
 		<Card className={cn(isRecommended && 'ring-2 ring-primary')}>
@@ -333,7 +361,7 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 				</Price>
 				<Button
 					className={cn(
-						'w-full font-semibold text-white',
+						'w-full font-semibold text-white cursor-pointer relative z-10',
 						isRecommended
 							? 'bg-gradient-to-b from-orange-500 to-orange-600 shadow-[0_10px_25px_rgba(255,115,0,0.3)]'
 							: '',
@@ -341,7 +369,14 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 					onClick={handleClick}
 					disabled={isDisabled}
 				>
-					{productDisplay?.button_text || buttonText || 'Get Started'}
+					{loading ? (
+						<>
+							<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+							Processing...
+						</>
+					) : (
+						productDisplay?.button_text || buttonText || 'Get Started'
+					)}
 				</Button>
 			</Header>
 			<Body>
@@ -374,7 +409,7 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 				)}
 				{basicFeatureItems.length > 0 && (
 					<>
-						<Separator>Pro features</Separator>
+						<Separator>Free features</Separator>
 						<List>
 							{basicFeatureItems.map((item) => {
 								const primaryText = item.display?.primary_text || '';
