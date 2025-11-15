@@ -17,11 +17,9 @@ interface TimelineBlockProps {
   }
   isSelected: boolean
   onSelect: () => void
-  onDragMove: (blockId: string, newStart: number) => void
-  onDragEnd: () => void
+  onDragEnd: (blockId: string, newStart: number) => void
   onResizeStart: (blockId: string, side: "left" | "right") => void
-  onResizeMove: (newStart: number, newDuration: number) => void
-  onResizeEnd: () => void
+  onResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
   onDelete: (blockId: string) => void
   onDuplicate: (blockId: string) => void
   onBlockClick?: (blockId: string, timeInBlock: number) => void
@@ -33,10 +31,8 @@ export default function TimelineBlock({
   block,
   isSelected,
   onSelect,
-  onDragMove,
   onDragEnd,
   onResizeStart,
-  onResizeMove,
   onResizeEnd,
   onDelete,
   onDuplicate,
@@ -55,10 +51,9 @@ export default function TimelineBlock({
     block: { id: block.id, start: block.start, duration: block.duration },
     totalDuration,
     pixelsPerSecond,
-    onDragMove,
+    blockElement: blockRef.current,
     onDragEnd,
     onResizeStart,
-    onResizeMove: (blockId, newStart, newDuration) => onResizeMove(newStart, newDuration),
     onResizeEnd,
   })
 
@@ -74,8 +69,7 @@ export default function TimelineBlock({
     e.preventDefault()
     e.stopPropagation()
 
-
-    if (isDraggingRef.current) {
+    if (isDraggingRef.current || !blockRef.current) {
       setMenuPos(null)
       return
     }
@@ -83,40 +77,56 @@ export default function TimelineBlock({
     // Select the block
     onSelect()
 
-    // Start dragging using delta-based approach (like grip handle)
+    // Start dragging using delta-based approach with direct DOM manipulation
     isDraggingRef.current = true
     const startX = e.clientX
     const startPos = block.start
+    const startPercent = (block.start / totalDuration) * 100
+
+    // store original transition for restoration
+    const originalTransition = blockRef.current.style.transition
+    blockRef.current.style.transition = "none"
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      if (!isDraggingRef.current) return
+      if (!isDraggingRef.current || !blockRef.current) return
 
       const deltaX = moveEvent.clientX - startX
       const timeDelta = deltaX / pixelsPerSecond
       const newStart = Math.max(0, Math.min(totalDuration - block.duration, startPos + timeDelta))
-      onDragMove(block.id, newStart)
+      const newPercent = (newStart / totalDuration) * 100
+
+      // direct DOM update - no React re-render
+      blockRef.current.style.left = `${newPercent}%`
     }
 
     const handlePointerUp = (upEvent: PointerEvent) => {
-      if (!isDraggingRef.current) return
+      if (!isDraggingRef.current || !blockRef.current) return
       isDraggingRef.current = false
+
+      // calculate final position
+      const finalLeft = parseFloat(blockRef.current.style.left) || startPercent
+      const finalStart = (finalLeft / 100) * totalDuration
+
+      // restore transition
+      blockRef.current.style.transition = originalTransition
 
       // Clean up
       document.removeEventListener("pointermove", handlePointerMove)
       document.removeEventListener("pointerup", handlePointerUp)
 
-      onDragEnd()
-
       // Handle click if quick tap
       const deltaX = Math.abs(upEvent.clientX - e.clientX)
       const deltaY = Math.abs(upEvent.clientY - e.clientY)
-      if (deltaX < 5 && deltaY < 5 && blockRef.current) {
+      if (deltaX < 5 && deltaY < 5) {
         // Calculate time position within the block based on click position
         const blockRect = blockRef.current.getBoundingClientRect()
         const clickX = e.clientX - blockRect.left
         const percentage = Math.max(0, Math.min(1, clickX / blockRect.width))
         const timeInBlock = block.start + percentage * block.duration
         onBlockClick?.(block.id, timeInBlock)
+      } else {
+        // commit to database
+        onDragEnd(block.id, finalStart)
       }
     }
 

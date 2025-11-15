@@ -6,11 +6,13 @@ import PlaybackControls from "@/components/ui/playback-controls"
 import { useTimelineBlocks } from "@/lib/hooks/use-timeline-blocks"
 import { useTimelineScrubber } from "@/lib/hooks/use-timeline-scrubber"
 import { Plus } from "lucide-react"
-import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import AddBlockModal from "./add-block-modal"
 
+import type { Id } from "../../convex/_generated/dataModel"
+
 interface TimelineEditorProps {
+  projectId: Id<"projects"> | null
   currentTime: number
   setCurrentTime: (time: number) => void
   isPlaying: boolean
@@ -22,6 +24,7 @@ interface TimelineEditorProps {
 }
 
 export default function TimelineEditor({
+  projectId,
   currentTime,
   setCurrentTime,
   isPlaying,
@@ -38,15 +41,14 @@ export default function TimelineEditor({
   // Custom hooks
   const {
     blocks,
-    handleBlockDragMove,
     handleBlockDragEnd,
     handleBlockResizeStart,
-    handleBlockResizeMove,
     handleBlockResizeEnd,
     handleBlockDelete,
     handleBlockDuplicate,
     handleAddBlock,
   } = useTimelineBlocks(
+    projectId,
     videoDuration,
     currentTime,
     selectedBlock,
@@ -82,7 +84,6 @@ export default function TimelineEditor({
     }
   }, [selectedBlock, handleBlockDelete])
 
-  const maxTracks = Math.max(...blocks.map((b) => b.track || 0), 0) + 1
   const hasVideo = blocks.length > 0
 
   const getPixelsPerSecond = () => {
@@ -91,7 +92,7 @@ export default function TimelineEditor({
   }
   const pixelsPerSecond = getPixelsPerSecond()
 
-  const handleBlockClick = (blockId: string, timeInBlock: number) => {
+  const handleBlockClick = (_blockId: string, timeInBlock: number) => {
     setCurrentTime(Math.max(0, Math.min(videoDuration, timeInBlock)))
   }
 
@@ -128,7 +129,7 @@ export default function TimelineEditor({
         <div className="flex items-center justify-between gap-3">
           <button
             onClick={() => setShowAddBlockModal(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold rounded transition-colors flex-shrink-0"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold rounded transition-colors shrink-0"
           >
             <Plus size={12} /> Add Block
           </button>
@@ -146,10 +147,8 @@ export default function TimelineEditor({
         videoDuration={videoDuration}
         pixelsPerSecond={pixelsPerSecond}
         onBlockClick={handleBlockClick}
-        onBlockDragMove={handleBlockDragMove}
         onBlockDragEnd={handleBlockDragEnd}
         onBlockResizeStart={handleBlockResizeStart}
-        onBlockResizeMove={handleBlockResizeMove}
         onBlockResizeEnd={handleBlockResizeEnd}
         onBlockDelete={handleBlockDelete}
         onBlockDuplicate={handleBlockDuplicate}
