@@ -19,10 +19,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { SignedIn, SignedOut, useAuth, useClerk, useUser } from "@clerk/tanstack-react-start";
-import { convexQuery, useConvexMutation } from "@convex-dev/react-query";
+import { convexQuery } from "@convex-dev/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
+import { useAction } from "convex/react";
 import { User } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -53,9 +54,9 @@ function Home() {
 		enabled: isAuthLoaded && isSignedIn && !!user,
 	});
 
-	const createProjectMutationFn = useConvexMutation(api.projects.create);
+	const createProjectAction = useAction(api.projects.create);
 	const createProjectMutation = useMutation({
-		mutationFn: createProjectMutationFn,
+		mutationFn: createProjectAction,
 	});
 
 	const handleSignOut = async () => {
@@ -73,7 +74,7 @@ function Home() {
 		if (projects.length === 0) {
 			setIsCreating(true);
 			try {
-				const projectId = await createProjectMutation.mutateAsync({
+				const { projectId } = await createProjectMutation.mutateAsync({
 					name: "My First Project",
 				});
 
@@ -106,7 +107,7 @@ function Home() {
 
 		setIsCreating(true);
 		try {
-			const projectId = await createProjectMutation.mutateAsync({ name });
+			const { projectId } = await createProjectMutation.mutateAsync({ name });
 
 			await queryClient.invalidateQueries({
 				queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,

@@ -1,22 +1,67 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { action, internalMutation, internalQuery, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 
-export const create = mutation({
-  args: { name: v.string() },
-  handler: async (ctx, args) => {
+export const getUserAndProjectCount = internalQuery({
+  args: {},
+  handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
+    if (!user) {
+      return { user: null, projectCount: 0 };
+    }
 
-    const existingProjects = await ctx.db
+    const projects = await ctx.db
       .query("projects")
       .withIndex("byOwnerId", q => q.eq("ownerId", user._id))
       .collect();
 
-    const planId = user.planId || "free";
+    return { user, projectCount: projects.length };
+  }
+});
+
+export const createInternal = internalMutation({
+  args: {
+    ownerId: v.id("users"),
+    name: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const projectId = await ctx.db.insert("projects", {
+      ownerId: args.ownerId,
+      name: args.name,
+      createdAt: args.createdAt,
+      updatedAt: args.updatedAt,
+    });
+
+    return projectId;
+  }
+});
+
+export const create = action({
+  args: { name: v.string() },
+  handler: async (ctx, args): Promise<{ projectId: Id<"projects">; projectCountBefore: number; projectCountAfter: number }> => {
+    const { user, projectCount } = await ctx.runQuery(internal.projects.getUserAndProjectCount as any);
+
+    if (!user) throw new Error("Not authenticated");
+
+    const projectCountBefore = projectCount;
+
+    const checkResult = await ctx.runAction(api.autumn.check, {
+      featureId: "1_active_project",
+    });
+
+    if (checkResult.error) {
+      throw new Error(`Failed to check plan: ${checkResult.error.message}`);
+    }
+
+    const hasFreePlanFeature = checkResult.data?.allowed === true;
+    const planId = hasFreePlanFeature ? "free" : "pro";
     const maxProjects = planId === "pro" ? 10 : 1;
 
-    if (existingProjects.length >= maxProjects) {
+    if (projectCountBefore >= maxProjects) {
       throw new Error(
         planId === "free"
           ? "Free plan allows only 1 project. Upgrade to Pro to create more projects."
@@ -26,14 +71,16 @@ export const create = mutation({
 
     const now = Date.now();
 
-    const projectId = await ctx.db.insert("projects", {
+    const projectId = await ctx.runMutation(internal.projects.createInternal as any, {
       ownerId: user._id,
       name: args.name,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     });
 
-    return projectId;
+    const { projectCount: projectCountAfter } = await ctx.runQuery(internal.projects.getUserAndProjectCount as any);
+
+    return { projectId, projectCountBefore, projectCountAfter };
   }
 });
 
