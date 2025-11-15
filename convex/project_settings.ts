@@ -130,33 +130,81 @@ export const update = mutation({
       })
     }
 
-    // build patches object with only defined values
+    // build patches object with only defined values that actually changed
     const patches: Record<string, string | number | boolean> = {}
 
-    if (args.aspectRatio !== undefined) patches.aspectRatio = args.aspectRatio
-    if (args.zoomLevel !== undefined) patches.zoomLevel = args.zoomLevel
-    if (args.hideToolbars !== undefined) patches.hideToolbars = args.hideToolbars
-    if (args.backgroundColor !== undefined) patches.backgroundColor = args.backgroundColor
-    if (args.backgroundType !== undefined) patches.backgroundType = args.backgroundType
-    if (args.gradientAngle !== undefined) patches.gradientAngle = args.gradientAngle
-    if (args.scale !== undefined) patches.scale = args.scale
-    if (args.translateX !== undefined) patches.translateX = args.translateX
-    if (args.translateY !== undefined) patches.translateY = args.translateY
-    if (args.rotateX !== undefined) patches.rotateX = args.rotateX
-    if (args.rotateY !== undefined) patches.rotateY = args.rotateY
-    if (args.rotateZ !== undefined) patches.rotateZ = args.rotateZ
-    if (args.perspective !== undefined) patches.perspective = args.perspective
-    if (args.frameHeight !== undefined) patches.frameHeight = args.frameHeight
-    if (args.showSearchBar !== undefined) patches.showSearchBar = args.showSearchBar
-    if (args.showStroke !== undefined) patches.showStroke = args.showStroke
-    if (args.macOsDarkColor !== undefined) patches.macOsDarkColor = args.macOsDarkColor
-    if (args.macOsLightColor !== undefined) patches.macOsLightColor = args.macOsLightColor
-    if (args.arcDarkMode !== undefined) patches.arcDarkMode = args.arcDarkMode
-    if (args.hideButtons !== undefined) patches.hideButtons = args.hideButtons
-    if (args.hasButtonColor !== undefined) patches.hasButtonColor = args.hasButtonColor
-    if (args.selectedFrame !== undefined) patches.selectedFrame = args.selectedFrame
-    if (args.frameRoundness !== undefined) patches.frameRoundness = args.frameRoundness
-    if (args.searchBarText !== undefined) patches.searchBarText = args.searchBarText
+    if (args.aspectRatio !== undefined && settings.aspectRatio !== args.aspectRatio) {
+      patches.aspectRatio = args.aspectRatio
+    }
+    if (args.zoomLevel !== undefined && settings.zoomLevel !== args.zoomLevel) {
+      patches.zoomLevel = args.zoomLevel
+    }
+    if (args.hideToolbars !== undefined && settings.hideToolbars !== args.hideToolbars) {
+      patches.hideToolbars = args.hideToolbars
+    }
+    if (args.backgroundColor !== undefined && settings.backgroundColor !== args.backgroundColor) {
+      patches.backgroundColor = args.backgroundColor
+    }
+    if (args.backgroundType !== undefined && settings.backgroundType !== args.backgroundType) {
+      patches.backgroundType = args.backgroundType
+    }
+    if (args.gradientAngle !== undefined && settings.gradientAngle !== args.gradientAngle) {
+      patches.gradientAngle = args.gradientAngle
+    }
+    if (args.scale !== undefined && settings.scale !== args.scale) {
+      patches.scale = args.scale
+    }
+    if (args.translateX !== undefined && settings.translateX !== args.translateX) {
+      patches.translateX = args.translateX
+    }
+    if (args.translateY !== undefined && settings.translateY !== args.translateY) {
+      patches.translateY = args.translateY
+    }
+    if (args.rotateX !== undefined && settings.rotateX !== args.rotateX) {
+      patches.rotateX = args.rotateX
+    }
+    if (args.rotateY !== undefined && settings.rotateY !== args.rotateY) {
+      patches.rotateY = args.rotateY
+    }
+    if (args.rotateZ !== undefined && settings.rotateZ !== args.rotateZ) {
+      patches.rotateZ = args.rotateZ
+    }
+    if (args.perspective !== undefined && settings.perspective !== args.perspective) {
+      patches.perspective = args.perspective
+    }
+    if (args.frameHeight !== undefined && settings.frameHeight !== args.frameHeight) {
+      patches.frameHeight = args.frameHeight
+    }
+    if (args.showSearchBar !== undefined && settings.showSearchBar !== args.showSearchBar) {
+      patches.showSearchBar = args.showSearchBar
+    }
+    if (args.showStroke !== undefined && settings.showStroke !== args.showStroke) {
+      patches.showStroke = args.showStroke
+    }
+    if (args.macOsDarkColor !== undefined && settings.macOsDarkColor !== args.macOsDarkColor) {
+      patches.macOsDarkColor = args.macOsDarkColor
+    }
+    if (args.macOsLightColor !== undefined && settings.macOsLightColor !== args.macOsLightColor) {
+      patches.macOsLightColor = args.macOsLightColor
+    }
+    if (args.arcDarkMode !== undefined && settings.arcDarkMode !== args.arcDarkMode) {
+      patches.arcDarkMode = args.arcDarkMode
+    }
+    if (args.hideButtons !== undefined && settings.hideButtons !== args.hideButtons) {
+      patches.hideButtons = args.hideButtons
+    }
+    if (args.hasButtonColor !== undefined && settings.hasButtonColor !== args.hasButtonColor) {
+      patches.hasButtonColor = args.hasButtonColor
+    }
+    if (args.selectedFrame !== undefined && settings.selectedFrame !== args.selectedFrame) {
+      patches.selectedFrame = args.selectedFrame
+    }
+    if (args.frameRoundness !== undefined && settings.frameRoundness !== args.frameRoundness) {
+      patches.frameRoundness = args.frameRoundness
+    }
+    if (args.searchBarText !== undefined && settings.searchBarText !== args.searchBarText) {
+      patches.searchBarText = args.searchBarText
+    }
 
     if (Object.keys(patches).length > 0) {
       await ctx.db.patch(settings._id, patches)
