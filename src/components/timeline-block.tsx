@@ -1,9 +1,8 @@
 "use client"
 
-import { useBlockDragResize } from "@/lib/hooks/use-block-drag-resize"
-import { Grip as Grip2, Trash2 } from "lucide-react"
+import { Copy, GripVertical, Trash2 } from "lucide-react"
 import type React from "react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 interface TimelineBlockProps {
   block: {
@@ -42,50 +41,50 @@ export default function TimelineBlock({
 }: TimelineBlockProps) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const blockRef = useRef<HTMLDivElement>(null)
+  const isDraggingRef = useRef(false)
+  const isResizingRef = useRef<"left" | "right" | null>(null)
+  const rafRef = useRef<number | undefined>(undefined)
 
   const startPercent = (block.start / totalDuration) * 100
   const widthPercent = (block.duration / totalDuration) * 100
   const track = block.track || 0
 
-  const { handleGripPointerDown, handleResizeDown } = useBlockDragResize({
-    block: { id: block.id, start: block.start, duration: block.duration },
-    totalDuration,
-    pixelsPerSecond,
-    blockElement: blockRef.current,
-    onDragEnd,
-    onResizeStart,
-    onResizeEnd,
-  })
+  useEffect(
+    () => {
+      if (!blockRef.current) return
 
-  const isDraggingRef = useRef(false)
+      blockRef.current.style.left = `${startPercent}%`
+      blockRef.current.style.width = `${widthPercent}%`
+    },
+    [startPercent, widthPercent]
+  )
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setMenuPos({ x: e.clientX - 80, y: e.clientY - 10 })
+    setMenuPos({ x: e.clientX, y: e.clientY })
   }
 
   const handleBlockPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
 
-    if (isDraggingRef.current || !blockRef.current) {
+    if (isDraggingRef.current || isResizingRef.current || !blockRef.current) {
       setMenuPos(null)
       return
     }
 
-    // Select the block
     onSelect()
 
-    // Start dragging using delta-based approach with direct DOM manipulation
     isDraggingRef.current = true
     const startX = e.clientX
     const startPos = block.start
-    const startPercent = (block.start / totalDuration) * 100
 
-    // store original transition for restoration
     const originalTransition = blockRef.current.style.transition
     blockRef.current.style.transition = "none"
+
+    let lastLeft = startPercent
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       if (!isDraggingRef.current || !blockRef.current) return
@@ -95,37 +94,37 @@ export default function TimelineBlock({
       const newStart = Math.max(0, Math.min(totalDuration - block.duration, startPos + timeDelta))
       const newPercent = (newStart / totalDuration) * 100
 
-      // direct DOM update - no React re-render
-      blockRef.current.style.left = `${newPercent}%`
+      lastLeft = newPercent
+
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        if (blockRef.current) {
+          blockRef.current.style.left = `${newPercent}%`
+        }
+      })
     }
 
     const handlePointerUp = (upEvent: PointerEvent) => {
       if (!isDraggingRef.current || !blockRef.current) return
       isDraggingRef.current = false
 
-      // calculate final position
-      const finalLeft = parseFloat(blockRef.current.style.left) || startPercent
-      const finalStart = (finalLeft / 100) * totalDuration
+      const finalStart = (lastLeft / 100) * totalDuration
 
-      // restore transition
       blockRef.current.style.transition = originalTransition
 
-      // Clean up
       document.removeEventListener("pointermove", handlePointerMove)
       document.removeEventListener("pointerup", handlePointerUp)
 
-      // Handle click if quick tap
       const deltaX = Math.abs(upEvent.clientX - e.clientX)
       const deltaY = Math.abs(upEvent.clientY - e.clientY)
+
       if (deltaX < 5 && deltaY < 5) {
-        // Calculate time position within the block based on click position
         const blockRect = blockRef.current.getBoundingClientRect()
         const clickX = e.clientX - blockRect.left
         const percentage = Math.max(0, Math.min(1, clickX / blockRect.width))
         const timeInBlock = block.start + percentage * block.duration
         onBlockClick?.(block.id, timeInBlock)
       } else {
-        // commit to database
         onDragEnd(block.id, finalStart)
       }
     }
@@ -134,85 +133,175 @@ export default function TimelineBlock({
     document.addEventListener("pointerup", handlePointerUp)
   }
 
+  const handleResizeDown = (e: React.PointerEvent, side: "left" | "right") => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (isDraggingRef.current || isResizingRef.current || !blockRef.current) return
+
+    isResizingRef.current = side
+    onResizeStart(block.id, side)
+
+    const startX = e.clientX
+    const startPos = block.start
+    const startDuration = block.duration
+
+    const originalTransition = blockRef.current.style.transition
+    blockRef.current.style.transition = "none"
+
+    let lastLeft = startPercent
+    let lastWidth = widthPercent
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (!isResizingRef.current || !blockRef.current) return
+
+      const deltaX = moveEvent.clientX - startX
+      const timeDelta = deltaX / pixelsPerSecond
+
+      if (side === "left") {
+        const newStart = Math.max(0, startPos + timeDelta)
+        const newDuration = startDuration - (newStart - startPos)
+        const clampedDuration = Math.max(0.2, newDuration)
+        const clampedStart = startPos + startDuration - clampedDuration
+
+        const newPercent = (clampedStart / totalDuration) * 100
+        const newWidthPercent = (clampedDuration / totalDuration) * 100
+
+        lastLeft = newPercent
+        lastWidth = newWidthPercent
+
+        if (rafRef.current) cancelAnimationFrame(rafRef.current)
+        rafRef.current = requestAnimationFrame(() => {
+          if (blockRef.current) {
+            blockRef.current.style.left = `${newPercent}%`
+            blockRef.current.style.width = `${newWidthPercent}%`
+          }
+        })
+      } else {
+        const newDuration = Math.max(0.2, Math.min(totalDuration - startPos, startDuration + timeDelta))
+        const newWidthPercent = (newDuration / totalDuration) * 100
+
+        lastWidth = newWidthPercent
+
+        if (rafRef.current) cancelAnimationFrame(rafRef.current)
+        rafRef.current = requestAnimationFrame(() => {
+          if (blockRef.current) {
+            blockRef.current.style.width = `${newWidthPercent}%`
+          }
+        })
+      }
+    }
+
+    const handlePointerUp = () => {
+      if (!isResizingRef.current || !blockRef.current) return
+      isResizingRef.current = null
+
+      const finalStart = (lastLeft / 100) * totalDuration
+      const finalDuration = (lastWidth / 100) * totalDuration
+
+      blockRef.current.style.transition = originalTransition
+
+      document.removeEventListener("pointermove", handlePointerMove)
+      document.removeEventListener("pointerup", handlePointerUp)
+
+      onResizeEnd(block.id, finalStart, finalDuration)
+    }
+
+    document.addEventListener("pointermove", handlePointerMove)
+    document.addEventListener("pointerup", handlePointerUp)
+  }
+
+  useEffect(
+    () => {
+      return () => {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current)
+        }
+      }
+    },
+    []
+  )
+
   return (
-    <div
-      ref={blockRef}
-      onPointerDown={handleBlockPointerDown}
-      onContextMenu={handleContextMenu}
-      className={`absolute h-12 rounded-lg select-none group cursor-move ${
-        isSelected
-        ? `${block.color} shadow-lg ring-2 ring-accent/50`
-          : `${block.color} opacity-70 hover:opacity-90`
-      }`}
-      style={{
-        left: `${startPercent}%`,
-        width: `${widthPercent}%`,
-        minWidth: "80px",
-        top: `${track * 56}px`,
-        maxWidth: `calc(${widthPercent}% - 4px)`,
-      }}
-    >
-      {/* Main block content */}
-      <div className="h-full flex items-center justify-between px-2 gap-2">
-        {block.type === "video" && (
+    <>
+      <div
+        ref={blockRef}
+        onPointerDown={handleBlockPointerDown}
+        onContextMenu={handleContextMenu}
+        className={`absolute rounded-lg select-none group cursor-move transition-shadow ${isSelected
+          ? `${block.color} shadow-lg ring-2 ring-accent shadow-accent/20`
+          : `${block.color} opacity-80 hover:opacity-100`
+          }`}
+        style={{
+          left: `${startPercent}%`,
+          width: `${widthPercent}%`,
+          minWidth: "60px",
+          top: `${track * 64 + 8}px`,
+          height: "48px",
+          zIndex: isSelected ? 20 : 10,
+        }}
+      >
+        <div className="h-full flex items-center justify-between px-2.5 gap-2 overflow-hidden">
+          {block.type === "video" && (
+            <div className="text-white/80 hover:text-white transition-colors shrink-0 cursor-grab active:cursor-grabbing touch-none">
+              <GripVertical size={14} strokeWidth={2} />
+            </div>
+          )}
+
+          <span className="text-xs font-semibold text-white truncate flex-1 text-center px-1">
+            {block.label}
+          </span>
+        </div>
+
+        <div
+          onPointerDown={(e) => handleResizeDown(e, "left")}
+          className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 active:bg-white/30"
+        />
+
+        <div
+          onPointerDown={(e) => handleResizeDown(e, "right")}
+          className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 active:bg-white/30"
+        />
+      </div>
+
+      {menuPos && (
+        <>
           <div
-            onPointerDown={handleGripPointerDown}
-            className="text-white/70 hover:text-white transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing p-1 touch-none select-none"
+            className="fixed inset-0 z-40"
+            onClick={() => setMenuPos(null)}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+          <div
+            className="fixed bg-popover border border-border shadow-xl rounded-lg z-50 overflow-hidden min-w-[140px]"
+            style={{ top: `${menuPos.y}px`, left: `${menuPos.x}px` }}
           >
-            <Grip2 size={14} />
-          </div>
-        )}
-
-        {/* Label */}
-        <span className="text-xs font-semibold text-white truncate flex-1 text-center px-1">{block.label}</span>
-
-        {menuPos && (
-          <>
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setMenuPos(null)}
-              onContextMenu={(e) => e.preventDefault()}
-            />
-            <div
-              className="fixed bg-popover border border-border/50 rounded-lg shadow-xl z-50 whitespace-nowrap backdrop-blur-sm min-w-max"
-              style={{ top: `${menuPos.y}px`, left: `${menuPos.x}px` }}
-            >
-              {block.type !== "video" && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDuplicate(block.id)
-                    setMenuPos(null)
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors"
-                >
-                  Duplicate
-                </button>
-              )}
+            {block.type !== "video" && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  onDelete(block.id)
+                  onDuplicate(block.id)
                   setMenuPos(null)
                 }}
-                className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-accent transition-colors flex items-center gap-1"
+                className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors flex items-center gap-2"
               >
-                <Trash2 size={12} /> Delete
+                <Copy size={12} />
+                <span>Duplicate</span>
               </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div
-        onPointerDown={(e) => handleResizeDown(e, "left")}
-        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-3 h-10 bg-white/50 rounded hover:bg-white opacity-0 group-hover:opacity-100 transition-all cursor-col-resize active:bg-accent touch-none"
-      />
-
-      <div
-        onPointerDown={(e) => handleResizeDown(e, "right")}
-        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1.5 w-3 h-10 bg-white/50 rounded hover:bg-white opacity-0 group-hover:opacity-100 transition-all cursor-col-resize active:bg-accent touch-none"
-      />
-    </div>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(block.id)
+                setMenuPos(null)
+              }}
+              className="w-full text-left px-3 py-2 text-xs text-destructive hover:bg-accent transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={12} />
+              <span>Delete</span>
+            </button>
+          </div>
+        </>
+      )}
+    </>
   )
 }
