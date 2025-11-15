@@ -7,6 +7,14 @@ import { defineConfig } from 'vite'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 
 const config = defineConfig({
+  resolve: {
+    alias: {
+      cookie: "cookie"
+    }
+  },
+  optimizeDeps: {
+    include: ['@clerk/tanstack-react-start','cookie'],
+  },
   plugins: [
     devtools(),
     nitro(),
