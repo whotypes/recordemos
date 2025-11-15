@@ -2,7 +2,9 @@ import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import {
+	CatchBoundary,
 	createRootRouteWithContext,
+	DefaultGlobalNotFound,
 	HeadContent,
 	Outlet,
 	Scripts,
@@ -67,7 +69,7 @@ export const Route = createRootRouteWithContext<{
 		],
 	}),
 	shellComponent: RootComponent,
-	notFoundComponent: () => <div>Not found</div>,
+	notFoundComponent: () => <DefaultGlobalNotFound />,
 	beforeLoad: async (ctx) => {
 		const auth = await fetchClerkAuth()
 		const { userId, token } = auth
@@ -82,6 +84,18 @@ export const Route = createRootRouteWithContext<{
 			userId,
 			token,
 		}
+	},
+	errorComponent: (props) => {
+		return (
+			<RootDocument>
+				<CatchBoundary
+					getResetKey={() => 'reset'}
+					onCatch={(error) => console.error(error)}
+				>
+					<div>Error: {props.error.message}</div>
+				</CatchBoundary>
+			</RootDocument>
+		)
 	},
 });
 
