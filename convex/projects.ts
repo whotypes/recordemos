@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { action, internalMutation, internalQuery, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 
 export const getUserAndProjectCount = internalQuery({
@@ -106,5 +106,28 @@ export const listForCurrentUser = query({
         updatedAt: project.updatedAt,
       }))
       .sort((a, b) => b.createdAt - a.createdAt);
+  }
+});
+
+export const deleteProject = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const project = await ctx.db.get(args.projectId);
+
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    if (project.ownerId !== user._id) {
+      throw new Error("Not authorized to delete this project");
+    }
+
+    await ctx.db.delete(args.projectId);
   }
 });

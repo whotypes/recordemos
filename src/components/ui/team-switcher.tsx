@@ -1,6 +1,7 @@
 import { UpgradeModal } from "@/components/autumn/upgrade-modal"
 import { CreateProjectModal } from "@/components/create-project-modal"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
 import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
@@ -11,8 +12,9 @@ import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-q
 import { Link, useNavigate } from "@tanstack/react-router"
 import { useCustomer } from "autumn-js/react"
 import { api } from "convex/_generated/api"
-import { useAction } from "convex/react"
-import { Check, ChevronDown, CreditCard, Plus, Sparkles } from "lucide-react"
+import type { Id } from "convex/_generated/dataModel"
+import { useAction, useMutation as useConvexMutation } from "convex/react"
+import { Check, ChevronDown, CreditCard, Edit2, Plus, Sparkles, Trash2, X } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -52,6 +54,8 @@ export function TeamSwitcher({
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
     const [createModalOpen, setCreateModalOpen] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
 
     const { data: convexProjects } = useSuspenseQuery(
         convexQuery(api.projects.listForCurrentUser, {}),
@@ -61,6 +65,7 @@ export function TeamSwitcher({
     const createProjectMutation = useMutation({
       mutationFn: createProjectAction,
     })
+  const deleteProjectMutation = useConvexMutation(api.projects.deleteProject)
 
   const isPro = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
 
@@ -152,6 +157,10 @@ export function TeamSwitcher({
       return
     }
     setOpen(newOpen)
+    if (!newOpen) {
+      setSelectedProjects(new Set())
+      setDeleteMode(false)
+    }
   }
 
   const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -163,7 +172,64 @@ export function TeamSwitcher({
     }
   }
 
+  const handleToggleProject = (projectId: string) => {
+    setSelectedProjects((prev) => {
+      const next = new Set(prev)
+      if (next.has(projectId)) {
+        next.delete(projectId)
+      } else {
+        next.add(projectId)
+      }
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedProjects.size === defaultProjects.length) {
+      setSelectedProjects(new Set())
+    } else {
+      setSelectedProjects(new Set(defaultProjects.map((p) => p.id)))
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedProjects.size === 0) return
+
+    const projectIds = Array.from(selectedProjects)
+    const activeProjectWillBeDeleted = activeProjectId && selectedProjects.has(activeProjectId)
+
+    try {
+      await Promise.all(
+        projectIds.map((projectId) => deleteProjectMutation({ projectId: projectId as Id<"projects"> }))
+      )
+
+      await queryClient.invalidateQueries({
+        queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+      })
+
+      await queryClient.refetchQueries({
+        queryKey: convexQuery(api.projects.listForCurrentUser, {}).queryKey,
+      })
+
+      setSelectedProjects(new Set())
+      setDeleteMode(false)
+      toast.success(`Deleted ${projectIds.length} project${projectIds.length > 1 ? "s" : ""}`)
+
+      if (activeProjectWillBeDeleted) {
+        navigate({
+          to: "/studio",
+          search: { projectId: undefined },
+        })
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to delete project(s)"
+      toast.error(errorMessage)
+    }
+  }
+
   const isSignedIn = !!user
+  const allSelected = defaultProjects.length > 0 && selectedProjects.size === defaultProjects.length
 
   return (
     <div className="-mt-0.5">
@@ -204,97 +270,177 @@ export function TeamSwitcher({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0" align="start" side="bottom">
-        <div className="flex flex-col">
-          <div className="p-3 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-sm font-semibold truncate">
-                  {accountData.username}
-                </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {accountData.email}
-                </span>
+        <PopoverContent className="w-72 p-1 max-h-[600px] flex flex-col" align="start" side="bottom">
+          <div className="flex flex-col overflow-hidden">
+            <div className="px-2 py-1.5 shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-none truncate">
+                    {accountData.username}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground truncate mt-0.5">
+                    {accountData.email}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  {accountData.plan === "pro" ? (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+                      <Sparkles className="h-3 w-3" />
+                      <span className="text-xs font-medium">Pro</span>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={handleUpgrade}
+                      >
+                      <CreditCard className="h-3 w-3 mr-1.5" />
+                      Upgrade
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="shrink-0">
-                {accountData.plan === "pro" ? (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary">
-                    <Sparkles className="h-3 w-3" />
-                    <span className="text-xs font-medium">Pro</span>
+            </div>
+
+            <Separator />
+
+            <div className="flex flex-col overflow-hidden min-h-0">
+              <div className="px-2 py-1.5 flex items-center justify-between shrink-0">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Projects ({defaultProjects.length}/{maxProjects})
+                </span>
+                {defaultProjects.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    {deleteMode ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => {
+                            setDeleteMode(false)
+                            setSelectedProjects(new Set())
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1.5" />
+                          Cancel
+                        </Button>
+                        {selectedProjects.size > 0 && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-8 px-2 text-xs"
+                            onClick={handleDeleteSelected}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                            Delete ({selectedProjects.size})
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => setDeleteMode(true)}
+                      >
+                        <Edit2 className="h-3.5 w-3.5 mr-1.5" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
-                ) : (
+                )}
+              </div>
+
+              {deleteMode && defaultProjects.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="px-2 py-1.5 flex items-center justify-between shrink-0">
+                    <span className="text-xs text-muted-foreground">
+                      Select projects to delete
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={handleSelectAll}
+                        className="h-3.5 w-3.5"
+                      />
+                      <button
+                        onClick={handleSelectAll}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Select all
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-col overflow-hidden min-h-0">
+                <div className="overflow-y-auto flex-1 min-h-0 max-h-[300px]">
+                  {defaultProjects.length === 0 ? (
+                    <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                      No projects yet
+                    </div>
+                  ) : (
+                    defaultProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        onClick={() => {
+                          if (!deleteMode) {
+                            handleProjectSelect(project.id)
+                          }
+                        }}
+                        className={cn(
+                          "relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none",
+                          "focus:bg-accent focus:text-accent-foreground",
+                          !deleteMode && "hover:bg-accent hover:text-accent-foreground",
+                          activeProjectId === project.id && !deleteMode && "bg-accent text-accent-foreground",
+                          deleteMode && "cursor-default"
+                        )}
+                      >
+                        {deleteMode && (
+                          <Checkbox
+                            checked={selectedProjects.has(project.id)}
+                            onCheckedChange={() => handleToggleProject(project.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-3.5 w-3.5 shrink-0"
+                          />
+                        )}
+                        <span className="truncate flex-1 text-left">{project.name}</span>
+                        {!deleteMode && activeProjectId === project.id && (
+                          <Check className="h-4 w-4 shrink-0" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 px-2 text-xs"
-                    onClick={handleUpgrade}
+                    className="w-full justify-start h-9 px-2"
+                    onClick={handleCreateProject}
+                    disabled={isAtLimit}
                   >
-                    <CreditCard className="h-3 w-3 mr-1" />
-                    Upgrade
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Project
                   </Button>
-                )}
+                  {isAtLimit && (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">
+                      {accountData.plan === "free"
+                        ? "Upgrade to Pro to create more projects"
+                        : "Project limit reached"}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-
-          <Separator />
-
-          <div className="p-2">
-            <div className="px-2 py-1.5">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Projects ({defaultProjects.length}/{maxProjects})
-              </span>
-            </div>
-            <div className="space-y-0.5 max-h-64 overflow-y-auto">
-                              {defaultProjects.length === 0 ? (
-                                  <div className="px-2 py-4 text-sm text-muted-foreground text-center">
-                                      No projects yet
-                                  </div>
-                              ) : (
-                                  defaultProjects.map((project) => (
-                                      <button
-                                          key={project.id}
-                                          onClick={() => handleProjectSelect(project.id)}
-                                          className={cn(
-                                              "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm transition-colors",
-                                              "hover:bg-accent hover:text-accent-foreground",
-                                              activeProjectId === project.id
-                                                  ? "bg-accent text-accent-foreground"
-                                                  : "text-foreground"
-                                          )}
-                                      >
-                                          <span className="truncate">{project.name}</span>
-                                          {activeProjectId === project.id && (
-                                              <Check className="h-4 w-4 shrink-0 ml-2" />
-                                          )}
-                                      </button>
-                                  ))
-                              )}
-            </div>
-
-            <Separator className="my-2" />
-
-            <div className="space-y-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start h-9"
-                onClick={handleCreateProject}
-                                  disabled={isAtLimit}
-              >
-                                  <Plus className="h-4 w-4 mr-2" />
-                Create Project
-              </Button>
-              {isAtLimit && (
-                <p className="px-2 text-xs text-muted-foreground">
-                  {accountData.plan === "free"
-                    ? "Upgrade to Pro to create more projects"
-                    : "Project limit reached"}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
       </PopoverContent>
     </Popover>
           <UpgradeModal
