@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/popover'
 import { TeamSwitcher } from "@/components/ui/team-switcher"
 import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start"
-import { Link as RouterLink } from "@tanstack/react-router"
+import { Link as RouterLink, useLocation } from "@tanstack/react-router"
 import {
   BellIcon,
   CreditCard,
@@ -194,19 +194,28 @@ const navigationLinks = [
   {
     name: "Menu",
     items: [
-      { href: "#", label: "Overview", active: true },
-      { href: "#", label: "Integrations" },
-      { href: "#", label: "Deployments" },
-      { href: "#", label: "Domains" },
-      { href: "#", label: "Usage" },
-      { href: "#", label: "Storage" },
-      { href: "#", label: "Settings" },
+      { href: "/", label: "Home" },
+      { href: "/studio", label: "Studio" },
+      // TODO: Server routes that redirect to these
+      { href: "/github", label: "GitHub" },
+      { href: "/vibeapps", label: "VibeApps" },
+      { href: "/manifesto", label: "Manifesto" },
     ],
   },
 ]
 
 export default function StudioNavbar() {
   const Link: any = "a"
+  const location = useLocation()
+
+  const isLinkActive = (href: string): boolean => {
+    if (href === "#" || !href) return false
+    const currentPath = location.pathname
+    if (href === "/") {
+      return currentPath === "/"
+    }
+    return currentPath.startsWith(href)
+  }
 
   return (
     <header className="border-border mt-4 w-full flex-col items-center justify-between gap-3 border-b px-4 xl:px-6">
@@ -244,17 +253,20 @@ export default function StudioNavbar() {
       <div className="flex w-full items-center justify-start pb-1.5">
         <NavigationMenu className="max-md:hidden">
           <NavigationMenuList>
-            {navigationLinks[0].items.map((link, index) => (
-              <NavigationMenuItem key={index} asChild>
-                <Link
-                  href={link.href}
-                  data-active={link.active}
-                  className="text-foreground/60s data-[active=true]:text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex flex-col gap-1 rounded-md px-3 py-1.5 text-sm font-normal transition-all outline-none focus-visible:ring-[3px] data-[active=true]:relative"
-                >
-                  {link.label}
-                </Link>
-              </NavigationMenuItem>
-            ))}
+            {navigationLinks[0].items.map((link, index) => {
+              const isActive = isLinkActive(link.href)
+              return (
+                <NavigationMenuItem key={index} asChild>
+                  <Link
+                    href={link.href}
+                    data-active={isActive}
+                    className="text-foreground/60 data-[active=true]:text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex flex-col gap-1 rounded-md px-3 py-1.5 text-sm font-normal transition-all outline-none focus-visible:ring-[3px] data-[active=true]:relative"
+                  >
+                    {link.label}
+                  </Link>
+                </NavigationMenuItem>
+              )
+            })}
           </NavigationMenuList>
         </NavigationMenu>
       </div>
