@@ -243,6 +243,9 @@ importers:
       remotion:
         specifier: ^4.0.374
         version: 4.0.375(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      server:
+        specifier: link:@clerk/tanstack-start/server
+        version: link:@clerk/tanstack-start/server
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -7185,14 +7188,14 @@ snapshots:
       '@remotion/media-parser': 4.0.375
       '@remotion/studio': 4.0.375(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@remotion/studio-shared': 4.0.375(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      css-loader: 5.2.7(webpack@5.96.1(esbuild@0.25.0))
+      css-loader: 5.2.7(webpack@5.96.1)
       esbuild: 0.25.0
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
       react-refresh: 0.9.0
       remotion: 4.0.375(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       source-map: 0.7.3
-      style-loader: 4.0.0(webpack@5.96.1(esbuild@0.25.0))
+      style-loader: 4.0.0(webpack@5.96.1)
       webpack: 5.96.1(esbuild@0.25.0)
     transitivePeerDependencies:
       - '@swc/core'
@@ -8441,7 +8444,7 @@ snapshots:
     optionalDependencies:
       srvx: 0.8.15
 
-  css-loader@5.2.7(webpack@5.96.1(esbuild@0.25.0)):
+  css-loader@5.2.7(webpack@5.96.1):
     dependencies:
       icss-utils: 5.1.0(postcss@8.5.6)
       loader-utils: 2.0.4
@@ -9805,7 +9808,7 @@ snapshots:
     dependencies:
       js-tokens: 9.0.1
 
-  style-loader@4.0.0(webpack@5.96.1(esbuild@0.25.0)):
+  style-loader@4.0.0(webpack@5.96.1):
     dependencies:
       webpack: 5.96.1(esbuild@0.25.0)
 

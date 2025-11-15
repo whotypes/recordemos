@@ -13,7 +13,7 @@ import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { ClientOnly, createFileRoute } from '@tanstack/react-router'
 import { useState } from "react"
 
-export const Route = createFileRoute('/studio')({
+export const Route = createFileRoute("/studio")({
     ssr: false,
     component: Studio,
 })
