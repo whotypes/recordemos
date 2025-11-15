@@ -1,5 +1,5 @@
-import { useState, useRef } from "react"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { useRef, useState } from "react"
 
 export const useScreenRecorder = () => {
   const [isRecording, setIsRecording] = useState(false)
@@ -15,16 +15,68 @@ export const useScreenRecorder = () => {
       }
 
       setIsRecording(true)
+
+      // Request high-quality video with optimal constraints
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: {
+          displaySurface: "monitor",
+          // Use ideal constraints to request the best quality
+          width: { ideal: window.screen.width * window.devicePixelRatio },
+          height: { ideal: window.screen.height * window.devicePixelRatio },
+          frameRate: { ideal: 30 },
+        },
         audio: false,
       })
 
       streamRef.current = stream
 
-      const mediaRecorder = new MediaRecorder(stream, {
+      // Get the actual track settings to check screenPixelRatio
+      const videoTrack = stream.getVideoTracks()[0]
+      const settings = videoTrack.getSettings()
+      // @ts-ignore https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/screenPixelRatio
+      const screenPixelRatio = settings.screenPixelRatio ?? window.devicePixelRatio
+
+      // If we have screenPixelRatio, we can optimize the recording
+      // The browser may have captured at logical resolution, so we can
+      // request constraints to match the physical resolution
+      if (screenPixelRatio && screenPixelRatio > 1) {
+        const capabilities = videoTrack.getCapabilities()
+
+        // Try to apply optimal constraints based on screenPixelRatio
+        if (capabilities.width && capabilities.height && typeof capabilities.width === "object" && typeof capabilities.height === "object") {
+          const maxWidth = "max" in capabilities.width ? capabilities.width.max : undefined
+          const maxHeight = "max" in capabilities.height ? capabilities.height.max : undefined
+
+          const optimalWidth = Math.min(
+            maxWidth ?? window.screen.width * screenPixelRatio,
+            window.screen.width * screenPixelRatio
+          )
+          const optimalHeight = Math.min(
+            maxHeight ?? window.screen.height * screenPixelRatio,
+            window.screen.height * screenPixelRatio
+          )
+
+          await videoTrack.applyConstraints({
+            width: { ideal: optimalWidth },
+            height: { ideal: optimalHeight },
+            frameRate: { ideal: 60 },
+          })
+        }
+      }
+
+      // Use better quality settings for MediaRecorder
+      const options: MediaRecorderOptions = {
         mimeType: "video/webm",
-      })
+      }
+
+      // Try to use VP9 codec for better quality if available
+      if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
+        options.mimeType = "video/webm;codecs=vp9"
+      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
+        options.mimeType = "video/webm;codecs=vp8"
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, options)
       mediaRecorderRef.current = mediaRecorder
       const chunks: BlobPart[] = []
 
@@ -56,8 +108,7 @@ export const useScreenRecorder = () => {
       mediaRecorder.start()
 
       // Stop when user stops sharing
-      const track = stream.getVideoTracks()[0]
-      track.onended = () => {
+      videoTrack.onended = () => {
         mediaRecorder.stop()
       }
     } catch (err) {

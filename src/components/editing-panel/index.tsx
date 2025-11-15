@@ -1,14 +1,19 @@
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSubscriptionStore } from "@/lib/subscription-store"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
-import { Frame, Monitor, Move, Palette, Video, ZoomIn } from "lucide-react"
+import { Frame, Monitor, Move, Palette, Video, ZoomIn, Film } from "lucide-react"
 import BackgroundSelector from "./background-selector"
 import BrowserAppearance from "./browser-appearance"
 import SidebarButton from "./sidebar-button"
 import VideoControls from "./video-controls"
+import VideoPanel from "./video-panel"
 import ZoomAspectPanel from "./zoom-aspect-panel"
 
-export default function EditingPanel() {
+interface EditingPanelProps {
+  onExport?: () => void
+}
+
+export default function EditingPanel({ onExport }: EditingPanelProps) {
   const activeTabIndex = useVideoOptionsStore((state) => state.activeTabIndex)
   const setActiveTabIndex = useVideoOptionsStore((state) => state.setActiveTabIndex)
   const hideToolbars = useVideoOptionsStore((state) => state.hideToolbars)
@@ -16,6 +21,12 @@ export default function EditingPanel() {
   const setShowPremiumModal = useSubscriptionStore((state) => state.setShowPremiumModal)
 
   const tabs = [
+    {
+      id: 'video',
+      text: 'Video',
+      icon: <Film size={20} />,
+      component: <VideoPanel onExport={onExport || (() => {})} />,
+    },
     {
       id: 'background',
       text: 'Background',
@@ -46,7 +57,6 @@ export default function EditingPanel() {
 
   return (
     <div className="flex w-full h-full bg-card">
-      {/* Left Sidebar */}
       <ul className="flex basis-full flex-col items-center gap-6 overflow-x-hidden border-r border-border/60 px-4 py-4 md:max-w-[28%] md:basis-[28%] md:border-r">
         {tabs.map((tab, index) => (
           <SidebarButton
@@ -60,7 +70,6 @@ export default function EditingPanel() {
         ))}
       </ul>
 
-      {/* Right Content */}
       <div className="relative hidden h-full w-full flex-col overflow-hidden md:flex min-w-0">
         <ScrollArea type="scroll" className="flex-1 min-h-0">
           <div className="flex flex-col px-4">
@@ -74,7 +83,6 @@ export default function EditingPanel() {
           </div>
         </ScrollArea>
 
-        {/* Info */}
         <div className="shrink-0 flex items-end px-4 py-4 border-t border-border/60">
           <p className="text-xs text-muted-foreground text-center leading-relaxed">
             All rendering is local on your device
