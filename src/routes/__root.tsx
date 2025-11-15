@@ -1,4 +1,5 @@
-import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/tanstack-react-start";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import {
@@ -11,6 +12,7 @@ import {
 	useRouteContext,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import React from "react";
 
 import { AutumnProviderComponent } from "@/components/autumn/autumn-provider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -24,6 +26,14 @@ import appCss from "../styles.css?url";
 
 const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
 	const authResult = await auth()
+
+	if (!authResult.isAuthenticated || !authResult.userId) {
+		return {
+			userId: undefined,
+			token: undefined,
+		}
+	}
+
 	const token = await authResult.getToken({ template: 'convex' })
 
 	return {
@@ -73,8 +83,8 @@ export const Route = createRootRouteWithContext<{
 	shellComponent: RootComponent,
 	notFoundComponent: () => <DefaultGlobalNotFound />,
 	beforeLoad: async (ctx) => {
-		const auth = await fetchClerkAuth()
-		const { userId, token } = auth
+		const authData = await fetchClerkAuth()
+		const { userId, token } = authData
 
 		// During SSR only (the only time serverHttpClient exists),
 		// set the Clerk auth token to make HTTP queries with.
@@ -103,9 +113,13 @@ export const Route = createRootRouteWithContext<{
 
 function RootComponent() {
 	const context = useRouteContext({ from: Route.id })
+
+	// Use the ConvexQueryClient's internal client, not the separate convexClient
+	const convexClientForAuth = context.convexQueryClient.convexClient
+
 	return (
 		<ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
-			<ConvexProviderWithClerk client={context.convexClient} useAuth={useAuth}>
+			<ConvexProviderWithClerk client={convexClientForAuth} useAuth={useClerkAuth}>
 				<AutumnProviderComponent>
 					<RootDocument>
 						<Outlet />
@@ -114,7 +128,6 @@ function RootComponent() {
 			</ConvexProviderWithClerk>
 		</ClerkProvider>
 	)
-
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {

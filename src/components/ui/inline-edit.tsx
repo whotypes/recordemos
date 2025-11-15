@@ -33,7 +33,7 @@ const inlineEditVariants = cva(
 
 export interface InlineEditProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange" | "onSave">,
-    VariantProps<typeof inlineEditVariants> {
+  VariantProps<typeof inlineEditVariants> {
   /** Current value of the input */
   value?: string
   /** Default value for uncontrolled mode */

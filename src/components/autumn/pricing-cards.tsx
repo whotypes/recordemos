@@ -146,7 +146,6 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 	const [loading, setLoading] = useState(false);
 
 	const handleClick = async () => {
-		console.log('handleClick', basicPlan.id, customer);
 		setLoading(true);
 		try {
 			if (basicPlan.id && customer) {
@@ -310,7 +309,6 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 	const [loading, setLoading] = useState(false);
 
 	const handleClick = async () => {
-		console.log('handleClick', proPlan.id, customer);
 		setLoading(true);
 		try {
 			if (proPlan.id && customer) {

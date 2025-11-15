@@ -6,7 +6,6 @@ import { useCallback, useState } from "react";
 /*
 const loggingMiddleware = createMiddleware().server(
   async ({ next, request }) => {
-    console.log("Request:", request.url);
     return next();
   }
 );

@@ -1,6 +1,6 @@
 'use client'
 
-import { useSubscriptionStore } from "@/lib/subscription-store"
+import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
 import { cn } from '@/lib/utils'
 import React from 'react'
 
@@ -28,6 +28,7 @@ import {
 import { TeamSwitcher } from "@/components/ui/team-switcher"
 import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start"
 import { Link as RouterLink, useLocation } from "@tanstack/react-router"
+import { useCustomer } from "autumn-js/react"
 import {
   BellIcon,
   CreditCard,
@@ -119,13 +120,13 @@ function UserProfileDropdown({
   align?: "start" | "center" | "end"
   sizeClass?: string
 }) {
-  const isPremium = useSubscriptionStore((state) => state.isPremium)
+  const { customer } = useCustomer({ errorOnNotFound: false })
+  const isPremium = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
   const { user } = useUser()
   const { signOut } = useClerk()
 
   const handleSignOut = async () => {
-    await signOut()
-    window.location.href = "/"
+    await signOut({ redirectUrl: "/" })
   }
 
   if (!user) return null
@@ -204,7 +205,11 @@ const navigationLinks = [
   },
 ]
 
-export default function StudioNavbar() {
+interface StudioNavbarProps {
+  activeProjectId?: string
+}
+
+export default function StudioNavbar({ activeProjectId }: StudioNavbarProps = {}) {
   const Link: any = "a"
   const location = useLocation()
 
@@ -222,7 +227,7 @@ export default function StudioNavbar() {
       <div className="flex w-full items-center justify-between gap-4">
         <div className="flex flex-1 items-center justify-start gap-2">
           <MobileNav nav={navigationLinks} />
-          <TeamSwitcher />
+          <TeamSwitcher activeProjectId={activeProjectId} />
         </div>
 
         <div className="flex items-center justify-end gap-4 md:flex-1">

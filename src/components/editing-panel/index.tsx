@@ -1,6 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useSubscriptionStore } from "@/lib/subscription-store"
+import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
+import { useCustomer } from "autumn-js/react"
 import { Frame, Monitor, Move, Palette, Video, ZoomIn, Film } from "lucide-react"
 import BackgroundSelector from "./background-selector"
 import BrowserAppearance from "./browser-appearance"
@@ -17,8 +18,8 @@ export default function EditingPanel({ onExport }: EditingPanelProps) {
   const activeTabIndex = useVideoOptionsStore((state) => state.activeTabIndex)
   const setActiveTabIndex = useVideoOptionsStore((state) => state.setActiveTabIndex)
   const hideToolbars = useVideoOptionsStore((state) => state.hideToolbars)
-  const isPremium = useSubscriptionStore((state) => state.isPremium)
-  const setShowPremiumModal = useSubscriptionStore((state) => state.setShowPremiumModal)
+  const { customer } = useCustomer({ errorOnNotFound: false })
+  const isPremium = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
 
   const tabs = [
     {

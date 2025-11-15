@@ -21,6 +21,9 @@ importers:
       '@clerk/tanstack-react-start':
         specifier: ^0.27.1
         version: 0.27.1(@tanstack/react-router@1.136.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(@tanstack/react-start@1.136.3(crossws@0.4.1(srvx@0.8.15))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(vite@7.2.2(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6))(webpack@5.96.1))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@convex-dev/action-cache':
+        specifier: ^0.3.0
+        version: 0.3.0(convex@1.29.1(@clerk/clerk-react@5.55.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))
       '@convex-dev/r2':
         specifier: ^0.8.0
         version: 0.8.0(convex-svelte@0.0.11(convex@1.29.1(@clerk/clerk-react@5.55.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))(svelte@5.43.6))(convex@1.29.1(@clerk/clerk-react@5.55.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(svelte@5.43.6)(typescript@5.9.3)(zod@4.1.12)
@@ -812,6 +815,11 @@ packages:
   '@clerk/types@4.100.0':
     resolution: {integrity: sha512-QT9GIO3bDL4R+ojAtc8XeJc/ehkdcF/+6PN3tcRWwGe4eMbX2TQ54/mhXJiY01DhMwBnF5cgK3O/z3D+34B07Q==}
     engines: {node: '>=18.17.0'}
+
+  '@convex-dev/action-cache@0.3.0':
+    resolution: {integrity: sha512-B3GsOgwPv81whdu1mHaMKBwbIYHhNXsv3Fr5oMjynIOrRy1laGLUo9zRWDKWJgtKXfVnn8X/uxYD9RyWmPIbPQ==}
+    peerDependencies:
+      convex: ^1.24.8
 
   '@convex-dev/action-retrier@0.3.0':
     resolution: {integrity: sha512-opBNsgOPSuVY3qSARNub98XqPzSpSS7Jga0oGeWFhO+DcWBMt2gD3ssUeEA1Gi7wTNiZBX+T6OBfBnqMfv6Tuw==}
@@ -6805,6 +6813,10 @@ snapshots:
     transitivePeerDependencies:
       - react
       - react-dom
+
+  '@convex-dev/action-cache@0.3.0(convex@1.29.1(@clerk/clerk-react@5.55.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))':
+    dependencies:
+      convex: 1.29.1(@clerk/clerk-react@5.55.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
 
   '@convex-dev/action-retrier@0.3.0(convex@1.29.1(@clerk/clerk-react@5.55.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0))':
     dependencies:
