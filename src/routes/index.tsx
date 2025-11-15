@@ -8,7 +8,7 @@ import {
 import { HeroTitle } from "@/components/marketing/block";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -16,83 +16,14 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PRODUCT_IDS } from "@/lib/autumn/product-ids";
 import { cn } from "@/lib/utils";
 import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCustomer } from "autumn-js/react";
-import { Loader2, User } from "lucide-react";
-import { useState } from "react";
+import { User } from "lucide-react";
 
 export const Route = createFileRoute("/")({
 	component: Home,
 });
-
-function TestUpgradeButton() {
-	const [loading, setLoading] = useState(false);
-	const { checkout, customer } = useCustomer({ errorOnNotFound: false });
-
-	const handleUpgrade = async () => {
-		console.log({ customer })
-		if (!customer) {
-			alert('Please sign in first to test the upgrade flow');
-			return;
-		}
-
-		setLoading(true);
-		try {
-			const result = await checkout({
-				productId: PRODUCT_IDS.pro,
-				successUrl: window.location.origin + '/studio',
-			});
-
-			console.log('Checkout result:', result);
-
-			if (result?.data?.url) {
-				console.log('Redirecting to:', result.data.url);
-				window.location.href = result.data.url;
-			} else if (result?.error) {
-				console.error('Checkout error:', result.error);
-				alert(`Error: ${result.error.message}`);
-			} else {
-				console.log('No URL returned, might be a free plan or already subscribed');
-			}
-		} catch (error) {
-			console.error('Checkout failed:', error);
-			alert('Checkout failed. Check console for details.');
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	return (
-		<div className="flex flex-col items-center gap-4 p-6 border border-dashed border-primary/20 rounded-lg bg-secondary/50">
-			<p className="text-sm text-muted-foreground text-center">
-				Test Button: Upgrade to Pro Plan
-			</p>
-			<Button
-				onClick={handleUpgrade}
-				disabled={loading}
-				variant="outline"
-				size="sm"
-			>
-				{loading ? (
-					<>
-						<Loader2 className="w-4 h-4 mr-2 animate-spin" />
-						Processing...
-					</>
-				) : (
-					'Test Pro Upgrade (Stripe Redirect)'
-				)}
-			</Button>
-			{customer && (
-				<p className="text-xs text-muted-foreground">
-					Customer ID: {customer.id}
-				</p>
-			)}
-		</div>
-	);
-}
 
 function Home() {
 	const { user } = useUser();
@@ -585,9 +516,6 @@ function Home() {
 					</div>
 				</div>
 
-				<SignedIn>
-					<TestUpgradeButton />
-				</SignedIn>
 				<div className="z-10 flex h-full w-full flex-col items-center justify-center gap-6 p-12">
 					<h1 className="text-center text-4xl font-light leading-tight text-primary md:text-6xl">
 						Proudly Open Source
