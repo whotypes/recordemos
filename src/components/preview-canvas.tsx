@@ -12,7 +12,7 @@ import {
 import { useFrameOptionsStore } from "@/lib/frame-options-store"
 import { cn } from "@/lib/utils"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
-import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { setClearFileStatusesRef, useVideoPlayerStore } from "@/lib/video-player-store"
 import { CloudUploadIcon } from "lucide-react"
 import type React from "react"
 import { useCallback } from "react"
@@ -48,7 +48,7 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
     rotateY,
     rotateZ,
   } = useVideoOptionsStore()
-  const { setVideoSrc, setCurrentTime, setVideoDuration, loop, muted } = useVideoPlayerStore()
+  const { setVideoSrc, setCurrentTime, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat, loop, muted } = useVideoPlayerStore()
   const { selectedFrame, frameRoundness, showStroke, arcDarkMode, frameHeight } = useFrameOptionsStore()
 
   const dropzone = useDropzone({
@@ -70,11 +70,17 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
       setCurrentTime(0)
       setVideoDuration(0)
 
+      // Save file metadata
+      setVideoFileName(file.name)
+      setVideoFileSize(file.size)
+      const format = file.type.split('/')[1] || file.name.split('.').pop() || 'unknown'
+      setVideoFileFormat(format)
+
       return {
         status: "success",
         result: url,
       }
-    }, [setVideoSrc, setCurrentTime, setVideoDuration]),
+    }, [setVideoSrc, setCurrentTime, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat]),
     validation: {
       accept: {
         "video/*": [".mp4", ".webm", ".mov", ".avi", ".mkv"],
@@ -83,6 +89,8 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
       maxFiles: 1,
     },
   })
+
+  setClearFileStatusesRef(dropzone.clearFileStatuses)
 
   return (
     <div className="w-full h-full flex items-center justify-center">
