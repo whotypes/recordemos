@@ -1,9 +1,9 @@
 import React, {
-    MutableRefObject,
-    useCallback,
-    useEffect,
-    useRef,
-    useState,
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
 } from "react";
 
 const MIN_RANGE = 50;
@@ -34,19 +34,19 @@ export function HeroTitle() {
 
   return (
     <div className="flex flex-col items-center justify-center text-center">
-      <h1 className="font-bold tracking-tighter text-5xl text-primary md:text-7xl">
+      <h1 className="font-light tracking-tighter text-5xl text-primary md:text-7xl">
         The Open Source
       </h1>
       <span
         ref={measureRef}
-        className="absolute -left-[9999px] px-4 whitespace-nowrap font-bold tracking-tighter text-5xl text-primary md:text-7xl"
+        className="absolute -left-[9999px] px-4 whitespace-nowrap font-light tracking-tighter text-5xl text-primary md:text-7xl"
       >
         Video Editor
       </span>
       <div className="flex justify-center gap-4 mt-4 md:mt-6">
         <OpenSourceSlider width={textWidth} onChange={() => {}} />
       </div>
-      <p className="mt-8 text-center text-lg text-primary/60 max-w-2xl mx-auto font-medium">
+      <p className="mt-8 text-center text-lg font-light text-primary/60 max-w-2xl mx-auto">
         An intuitive, powerful, and free video editor for everyone. Create stunning videos with professional tools, right from your browser.
       </p>
     </div>
@@ -213,7 +213,7 @@ function OpenSourceSlider({
         );
       })}
       <div
-        className="flex z-10 items-center justify-center w-full h-full px-4 overflow-hidden pointer-events-none font-bold tracking-tighter text-5xl text-secondary md:text-7xl"
+        className="flex z-10 items-center justify-center w-full h-full px-4 overflow-hidden pointer-events-none font-bold tracking-tighter text-5xl text-secondary md:text-6xl"
         style={{ clipPath: `inset(0 ${width - right}px 0 ${left}px round 1rem)` }}
       >
         Video Editor

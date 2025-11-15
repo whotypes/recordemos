@@ -7,15 +7,33 @@ import {
 } from "@/components/autumn/pricing-cards";
 import { HeroTitle } from "@/components/marketing/block";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { User } from "lucide-react";
 
 export const Route = createFileRoute("/")({
 	component: Home,
 });
 
 function Home() {
+	const { user } = useUser();
+	const { signOut } = useClerk();
+
+	const handleSignOut = async () => {
+		await signOut();
+		window.location.href = "/";
+	};
+
 	return (
 		<div className="relative flex h-full w-full flex-col bg-card">
 			<div className="sticky top-0 z-50 mx-auto flex w-full max-w-screen-5xl items-center justify-between p-6 py-3">
@@ -34,9 +52,68 @@ function Home() {
 				</Link>
 				<div className="flex items-center gap-4">
 					<ThemeToggle />
-					<Link to={"/studio"} className={buttonVariants({ size: "sm" })}>
-						Get Started
-					</Link>
+					<SignedIn>
+						{user && (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<button
+										className="relative flex size-8 items-center justify-center rounded-full ring-2 ring-border transition-all hover:ring-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+										aria-label="User menu"
+									>
+										<Avatar className="size-8">
+											<AvatarImage
+												src={user.imageUrl}
+												alt={user.fullName || user.emailAddresses[0]?.emailAddress || "User"}
+											/>
+											<AvatarFallback>
+												{user.fullName?.[0]?.toUpperCase() ||
+													user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() || (
+														<User className="size-4" />
+													)}
+											</AvatarFallback>
+										</Avatar>
+									</button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="w-56">
+									<div className="flex flex-col space-y-1 p-2">
+										<p className="text-sm font-medium leading-none">
+											{user.fullName || "User"}
+										</p>
+										<p className="text-xs leading-none text-muted-foreground">
+											{user.emailAddresses[0]?.emailAddress}
+										</p>
+									</div>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem asChild>
+										<Link to="/studio" className="cursor-pointer">
+											Studio
+										</Link>
+									</DropdownMenuItem>
+									<DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+										Sign out
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						)}
+					</SignedIn>
+					<SignedOut>
+						<Link
+							to={"/sign-in/$"}
+							className={buttonVariants({ size: "sm", variant: "outline" })}
+						>
+							Sign In
+						</Link>
+					</SignedOut>
+					<SignedIn>
+						<Link to="/studio" className={buttonVariants({ size: "sm" })}>
+							Get Started
+						</Link>
+					</SignedIn>
+					<SignedOut>
+						<Link to="/sign-in/$" className={buttonVariants({ size: "sm" })}>
+							Get Started
+						</Link>
+					</SignedOut>
 				</div>
 			</div>
 
@@ -47,7 +124,7 @@ function Home() {
 						href="https://github.com/whotypes/recordemos"
 						target="_blank"
 						rel="noreferrer"
-						className="hidden h-10 select-none items-center gap-2 rounded-full bg-green-500/5 px-2 py-1 pr-2.5 text-base font-medium tracking-tight text-green-600 ring-1 ring-inset ring-green-600/20 backdrop-blur-sm dark:bg-yellow-800/40 dark:text-yellow-100 dark:ring-yellow-200/50 md:flex"
+						className="hidden h-10 select-none items-center gap-2 rounded-full bg-green-500/5 px-2 py-1 pr-2.5 text-base font-light tracking-tight text-green-600 ring-1 ring-inset ring-green-600/20 backdrop-blur-sm dark:bg-yellow-800/40 dark:text-yellow-100 dark:ring-yellow-200/50 md:flex"
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
@@ -61,12 +138,22 @@ function Home() {
 					</a>
 					<HeroTitle />
 					<div className="mt-2 flex w-full items-center justify-center gap-2">
-						<Link
-							to="/studio"
-							className={cn(buttonVariants({ size: "sm" }), "hidden sm:flex")}
-						>
-							Get Started
-						</Link>
+						<SignedIn>
+							<Link
+								to="/studio"
+								className={cn(buttonVariants({ size: "sm" }), "hidden sm:flex")}
+							>
+								Get Started
+							</Link>
+						</SignedIn>
+						<SignedOut>
+							<Link
+								to="/sign-in/$"
+								className={cn(buttonVariants({ size: "sm" }), "hidden sm:flex")}
+							>
+								Get Started
+							</Link>
+						</SignedOut>
 						<a
 							href="https://github.com/whotypes/recordemos"
 							target="_blank"
@@ -81,7 +168,7 @@ function Home() {
 					</div>
 				</div>
 				<div className="flex w-full flex-col items-center justify-center gap-2">
-					<h2 className="text-center font-serif text-xl font-medium text-primary/60">
+					<h2 className="text-center font-serif text-xl font-light text-primary/60">
 						Built with Vibes™
 					</h2>
 					<div className="my-8 flex flex-wrap items-center justify-center gap-10 gap-y-8 lg:gap-14">
@@ -429,10 +516,10 @@ function Home() {
 					</div>
 				</div>
 				<div className="z-10 flex h-full w-full flex-col items-center justify-center gap-6 p-12">
-					<h1 className="text-center text-4xl font-bold leading-tight text-primary md:text-6xl">
+					<h1 className="text-center text-4xl font-light leading-tight text-primary md:text-6xl">
 						Proudly Open Source
 					</h1>
-					<p className="text-center text-lg text-primary/60">
+					<p className="text-center text-lg font-light text-primary/60">
 						Like Convex, Record Demos is a fully Open Source project.
 						<br />
 						The code is available on GitHub.
@@ -441,7 +528,7 @@ function Home() {
 						href="https://github.com/whotypes/recordemos"
 						target="_blank"
 						rel="noreferrer"
-						className="hidden h-10 select-none items-center gap-2 rounded-full bg-green-500/5 px-2 py-1 pr-2.5 text-base font-medium tracking-tight text-green-600 ring-1 ring-inset ring-green-600/20 backdrop-blur-sm dark:bg-yellow-800/40 dark:text-yellow-100 dark:ring-yellow-200/50 md:flex"
+						className="hidden h-10 select-none items-center gap-2 rounded-full bg-green-500/5 px-2 py-1 pr-2.5 text-base font-light tracking-tight text-green-600 ring-1 ring-inset ring-green-600/20 backdrop-blur-sm dark:bg-yellow-800/40 dark:text-yellow-100 dark:ring-yellow-200/50 md:flex"
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
