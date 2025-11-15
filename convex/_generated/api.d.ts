@@ -9,6 +9,8 @@
  */
 
 import type * as autumn from "../autumn.js";
+import type * as http from "../http.js";
+import type * as users from "../users.js";
 import type * as v1_tasks from "../v1/tasks.js";
 
 import type {
@@ -19,6 +21,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   autumn: typeof autumn;
+  http: typeof http;
+  users: typeof users;
   "v1/tasks": typeof v1_tasks;
 }>;
 
