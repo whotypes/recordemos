@@ -4,14 +4,14 @@ import { useSubscriptionStore } from "@/lib/subscription-store"
 import { cn } from '@/lib/utils'
 import React from 'react'
 
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -25,11 +25,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { TeamSwitcher } from "@/components/ui/team-switcher"
+import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start"
+import { Link as RouterLink } from "@tanstack/react-router"
 import {
   BellIcon,
-  BookOpenIcon,
-  CheckIcon,
-  ChevronsUpDownIcon,
   CreditCard,
   LogOut,
   Settings,
@@ -112,51 +112,6 @@ export function MobileNav({ nav }: MobileNavProps) {
     )
 }
 
-const defaultTeams = [
-  { id: "recorddemos", name: "RecordDemos Team" },
-]
-
-export function TeamSwitcher() {
-  const [team, setTeam] = React.useState(defaultTeams[0])
-  const [open, setOpen] = React.useState(false)
-
-  const onCreateNewTeam = () => {
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            "dark:hover:bg-accent max-w-[140px] cursor-pointer justify-start px-2 sm:max-w-[180px] flex items-center gap-2"
-          )}
-        >
-          <div className="w-5 h-5 rounded-sm bg-accent flex items-center justify-center">
-            <span className="text-xs font-bold text-accent-foreground">RD</span>
-          </div>
-          <p className="truncate text-sm">{team.name}</p>
-          <ChevronsUpDownIcon className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="p-0" align="start">
-        <div className="p-2">
-          <div className="flex items-center gap-3 p-2 rounded-sm">
-            <div className="w-5 h-5 rounded-sm bg-accent flex items-center justify-center">
-              <span className="text-xs font-bold text-accent-foreground">RD</span>
-            </div>
-            <span className="flex-1">RecordDemos Team</span>
-            <CheckIcon className="ml-auto h-4 w-4 opacity-100" aria-hidden />
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 function UserProfileDropdown({
   align = "end",
   sizeClass = "h-8 w-8",
@@ -165,32 +120,49 @@ function UserProfileDropdown({
   sizeClass?: string
 }) {
   const isPremium = useSubscriptionStore((state) => state.isPremium)
+  const { user } = useUser()
+  const { signOut } = useClerk()
+
+  const handleSignOut = async () => {
+    await signOut()
+    window.location.href = "/"
+  }
+
+  if (!user) return null
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+            "relative flex size-8 items-center justify-center rounded-full ring-2 ring-border transition-all hover:ring-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
             sizeClass
           )}
-          aria-label="Open user menu"
+          aria-label="User menu"
         >
-          <Avatar className={cn("h-full w-full")}>
-            <AvatarImage src="/avatar-1.png" alt="User avatar" />
-            <AvatarFallback>JD</AvatarFallback>
+          <Avatar className="size-8">
+            <AvatarImage
+              src={user.imageUrl}
+              alt={user.fullName || user.emailAddresses[0]?.emailAddress || "User"}
+            />
+            <AvatarFallback>
+              {user.fullName?.[0]?.toUpperCase() ||
+                user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() || (
+                  <User className="size-4" />
+                )}
+            </AvatarFallback>
           </Avatar>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-56">
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">John Doe</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              john@example.com
-            </p>
-          </div>
-        </DropdownMenuLabel>
+        <div className="flex flex-col space-y-1 p-2">
+          <p className="text-sm font-medium leading-none">
+            {user.username || "User"}
+          </p>
+          <p className="text-xs leading-none text-muted-foreground">
+            {user.emailAddresses[0]?.emailAddress}
+          </p>
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem className="flex items-center">
@@ -209,9 +181,9 @@ function UserProfileDropdown({
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="flex items-center">
+        <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer flex items-center">
           <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+          <span>Sign out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -254,16 +226,19 @@ export default function StudioNavbar() {
             >
               <BellIcon className="h-4 w-4" />
             </Link>
-            <Link
-              href="#"
-              className={cn(
-                "h-8 w-8 flex items-center justify-center"
-              )}
-            >
-              <BookOpenIcon className="h-4 w-4" />
-            </Link>
+            <ThemeToggle />
           </div>
-          <UserProfileDropdown align="end" sizeClass="h-8 w-8" />
+          <SignedIn>
+            <UserProfileDropdown align="end" sizeClass="h-8 w-8" />
+          </SignedIn>
+          <SignedOut>
+            <RouterLink
+              to="/sign-in/$"
+              className={buttonVariants({ size: "sm" })}
+            >
+              Sign In
+            </RouterLink>
+          </SignedOut>
         </div>
       </div>
       <div className="flex w-full items-center justify-start pb-1.5">
@@ -274,7 +249,7 @@ export default function StudioNavbar() {
                 <Link
                   href={link.href}
                   data-active={link.active}
-                  className="text-foreground/60 data-[active=true]:text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex flex-col gap-1 rounded-md px-3 py-1.5 text-sm font-normal transition-all outline-none focus-visible:ring-[3px] data-[active=true]:relative"
+                  className="text-foreground/60s data-[active=true]:text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex flex-col gap-1 rounded-md px-3 py-1.5 text-sm font-normal transition-all outline-none focus-visible:ring-[3px] data-[active=true]:relative"
                 >
                   {link.label}
                 </Link>

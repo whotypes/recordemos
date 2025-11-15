@@ -14,6 +14,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 
 import { AutumnProviderComponent } from "@/components/autumn/autumn-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { auth } from "@clerk/tanstack-react-start/server";
 import { ConvexQueryClient } from "@convex-dev/react-query";
 import { createServerFn } from "@tanstack/react-start";
@@ -126,6 +127,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<ThemeProvider defaultTheme="system">
 					{/* <Navbar /> */}
 					{children}
+					<Toaster />
 					<TanStackDevtools
 						config={{
 							position: "bottom-right",

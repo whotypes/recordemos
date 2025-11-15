@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   createContext,
@@ -14,7 +15,6 @@ import {
   FileRejection,
   useDropzone as rootUseDropzone,
 } from "react-dropzone";
-import { Button } from "@/components/ui/button";
 
 type DropzoneResult<TUploadRes, TUploadError> =
   | {
@@ -65,6 +65,9 @@ const fileStatusReducer = <TUploadRes, TUploadError>(
         type: "remove";
         id: string;
       }
+    | {
+      type: "clear";
+    }
     | ({
         type: "update-status";
         id: string;
@@ -84,6 +87,8 @@ const fileStatusReducer = <TUploadRes, TUploadError>(
       ];
     case "remove":
       return state.filter((fileStatus) => fileStatus.id !== action.id);
+    case "clear":
+      return [];
     case "update-status":
       return state.map((fileStatus) => {
         if (fileStatus.id === action.id) {
@@ -189,6 +194,7 @@ interface UseDropzoneReturn<TUploadRes, TUploadError> {
   onRemoveFile: (id: string) => Promise<void>;
   onRetry: (id: string) => Promise<void>;
   canRetry: (id: string) => boolean;
+  clearFileStatuses: () => void;
   fileStatuses: FileStatus<TUploadRes, TUploadError>[];
   isInvalid: boolean;
   isDragActive: boolean;
@@ -319,6 +325,10 @@ const useDropzone = <TUploadRes, TUploadError = string>(
 
   const getFileMessageId = (id: string) => `${inputId}-${id}-message`;
 
+  const clearFileStatuses = useCallback(() => {
+    dispatch({ type: "clear" });
+  }, []);
+
   const dropzone = rootUseDropzone({
     accept: validation?.accept,
     minSize: validation?.minSize,
@@ -377,6 +387,7 @@ const useDropzone = <TUploadRes, TUploadError = string>(
     onRemoveFile,
     onRetry,
     canRetry,
+    clearFileStatuses,
     fileStatuses: fileStatuses as FileStatus<TUploadRes, TUploadError>[],
     isInvalid,
     rootError,
@@ -391,6 +402,7 @@ const DropZoneContext = createContext<UseDropzoneReturn<any, any>>({
   onRemoveFile: async () => {},
   onRetry: async () => {},
   canRetry: () => false,
+  clearFileStatuses: () => { },
   fileStatuses: [],
   isInvalid: false,
   isDragActive: false,
@@ -826,5 +838,5 @@ export {
   DropzoneRetryFile,
   DropzoneTrigger,
   InfiniteProgress,
-  useDropzone,
+  useDropzone
 };
