@@ -1,16 +1,4 @@
-import { cn } from '@/lib/utils';
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import {
-	CheckCircle2,
-	Users,
-	Loader2,
-	XCircleIcon,
-} from 'lucide-react';
-import { useCustomer, usePricingTable, type ProductDetails } from 'autumn-js/react';
-import { CheckoutDialog } from '@/components/autumn/checkout-dialog';
-import { getPricingTableContent } from '@/lib/autumn/pricing-table-content';
-import type { Product } from 'autumn-js';
+import { CheckoutDialog } from "@/components/autumn/checkout-dialog";
 import {
 	Badge,
 	Body,
@@ -20,13 +8,22 @@ import {
 	List,
 	ListItem,
 	MainPrice,
-	OriginalPrice,
 	Period,
 	Plan,
 	PlanName,
 	Price,
 	Separator,
-} from '@/components/autumn/pricing-card';
+} from "@/components/autumn/pricing-card";
+import { Button } from "@/components/ui/button";
+import { getPricingTableContent } from "@/lib/autumn/pricing-table-content";
+import { cn } from "@/lib/utils";
+import type { Product } from "autumn-js";
+import {
+	type ProductDetails,
+	useCustomer,
+	usePricingTable,
+} from "autumn-js/react";
+import { CheckCircle2, Loader2, Users, XCircleIcon } from "lucide-react";
 
 interface PricingCardsProps {
 	productDetails?: ProductDetails[];
@@ -202,7 +199,7 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 							const secondaryText = item.display?.secondary_text || '';
 
 							return (
-								<ListItem key={idx}>
+								<ListItem key={crypto.randomUUID()}>
 									<span className="mt-0.5">
 										<CheckCircle2
 											className="h-4 w-4 text-green-500"
@@ -210,7 +207,8 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 										/>
 									</span>
 									<span>
-										{primaryText} {secondaryText && (
+										{primaryText}{" "}
+										{secondaryText && (
 											<span className="text-muted-foreground text-xs">
 												{secondaryText}
 											</span>
@@ -230,7 +228,7 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 								const secondaryText = item.display?.secondary_text || '';
 
 								return (
-									<ListItem key={idx} className="opacity-75">
+									<ListItem key={crypto.randomUUID()} className="opacity-75">
 										<span className="mt-0.5">
 											<XCircleIcon
 												className="text-destructive h-4 w-4"
@@ -238,7 +236,8 @@ function CombinedPricingCard({ basicPlan, proPlan, customer, checkout }: Combine
 											/>
 										</span>
 										<span>
-											{primaryText} {secondaryText && (
+											{primaryText}{" "}
+											{secondaryText && (
 												<span className="text-muted-foreground text-xs">
 													{secondaryText}
 												</span>
@@ -341,7 +340,7 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 							const secondaryText = item.display?.secondary_text || '';
 
 							return (
-								<ListItem key={idx}>
+								<ListItem key={crypto.randomUUID()}>
 									<span className="mt-0.5">
 										<CheckCircle2
 											className="h-4 w-4 text-green-500"
@@ -349,7 +348,8 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 										/>
 									</span>
 									<span>
-										{primaryText} {secondaryText && (
+										{primaryText}{" "}
+										{secondaryText && (
 											<span className="text-muted-foreground text-xs">
 												{secondaryText}
 											</span>
@@ -369,7 +369,7 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 								const secondaryText = item.display?.secondary_text || '';
 
 								return (
-									<ListItem key={idx} className="opacity-75">
+									<ListItem key={crypto.randomUUID()} className="opacity-75">
 										<span className="mt-0.5">
 											<XCircleIcon
 												className="text-destructive h-4 w-4"
@@ -377,7 +377,8 @@ function ProPricingCard({ basicPlan, proPlan, customer, checkout }: ProPricingCa
 											/>
 										</span>
 										<span className="line-through">
-											{primaryText} {secondaryText && (
+											{primaryText}{" "}
+											{secondaryText && (
 												<span className="text-muted-foreground text-xs">
 													{secondaryText}
 												</span>
