@@ -108,7 +108,9 @@ export const updatePosition = mutation({
   },
   handler: async (ctx, args) => {
     const block = await ctx.db.get(args.blockId)
-    if (!block) throw new Error("Block not found")
+    if (!block) return
+
+    if (block.startMs === args.startMs) return
 
     await ctx.db.patch(args.blockId, {
       startMs: args.startMs,
@@ -131,7 +133,9 @@ export const updateSize = mutation({
   },
   handler: async (ctx, args) => {
     const block = await ctx.db.get(args.blockId)
-    if (!block) throw new Error("Block not found")
+    if (!block) return
+
+    if (block.startMs === args.startMs && block.durationMs === args.durationMs) return
 
     await ctx.db.patch(args.blockId, {
       startMs: args.startMs,
@@ -155,7 +159,9 @@ export const updateTrim = mutation({
   },
   handler: async (ctx, args) => {
     const block = await ctx.db.get(args.blockId)
-    if (!block) throw new Error("Block not found")
+    if (!block) return
+
+    if (block.trimStartMs === args.trimStartMs && block.trimEndMs === args.trimEndMs) return
 
     await ctx.db.patch(args.blockId, {
       trimStartMs: args.trimStartMs,
@@ -184,7 +190,18 @@ export const updateTransforms = mutation({
   },
   handler: async (ctx, args) => {
     const block = await ctx.db.get(args.blockId)
-    if (!block) throw new Error("Block not found")
+    if (!block) return
+
+    const current = block.transforms
+    if (
+      current.scale === args.transforms.scale &&
+      current.x === args.transforms.x &&
+      current.y === args.transforms.y &&
+      current.opacity === args.transforms.opacity &&
+      current.rotation === args.transforms.rotation
+    ) {
+      return
+    }
 
     await ctx.db.patch(args.blockId, {
       transforms: args.transforms,
@@ -213,6 +230,23 @@ export const updateMetadata = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    const block = await ctx.db.get(args.blockId)
+    if (!block) return
+
+    const current = block.metadata ?? {}
+    const newMetadata = args.metadata
+    if (
+      current.label === newMetadata.label &&
+      current.color === newMetadata.color &&
+      current.zoomLevel === newMetadata.zoomLevel &&
+      current.cropX === newMetadata.cropX &&
+      current.cropY === newMetadata.cropY &&
+      current.cropW === newMetadata.cropW &&
+      current.cropH === newMetadata.cropH
+    ) {
+      return
+    }
+
     await ctx.db.patch(args.blockId, {
       metadata: args.metadata,
     })
@@ -223,7 +257,7 @@ export const remove = mutation({
   args: { blockId: v.id("timeline_blocks") },
   handler: async (ctx, args) => {
     const block = await ctx.db.get(args.blockId)
-    if (!block) throw new Error("Block not found")
+    if (!block) return
 
     await ctx.db.delete(args.blockId)
 
@@ -295,4 +329,3 @@ export const batchUpdate = mutation({
     }
   },
 })
-
