@@ -1,4 +1,4 @@
-import { SignIn } from '@clerk/tanstack-react-start'
+import { SignInComponent } from '@/components/ui/sign-in'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/sign-in/$')({
@@ -6,5 +6,5 @@ export const Route = createFileRoute('/sign-in/$')({
 })
 
 function Page() {
-  return <SignIn />
+  return <SignInComponent />
 }

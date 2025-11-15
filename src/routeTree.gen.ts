@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SignInSsoCallbackRouteImport } from './routes/sign-in.sso-callback'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as AuthTestRouteImport } from './routes/auth/test'
 import { Route as AuthServertestRouteImport } from './routes/auth/servertest'
@@ -30,6 +31,11 @@ const StudioRoute = StudioRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInSsoCallbackRoute = SignInSsoCallbackRouteImport.update({
+  id: '/sign-in/sso-callback',
+  path: '/sign-in/sso-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInSplatRoute = SignInSplatRouteImport.update({
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/auth/servertest': typeof AuthServertestRoute
   '/auth/test': typeof AuthTestRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/sign-in/sso-callback': typeof SignInSsoCallbackRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
   '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/auth/servertest': typeof AuthServertestRoute
   '/auth/test': typeof AuthTestRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/sign-in/sso-callback': typeof SignInSsoCallbackRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
   '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/auth/servertest': typeof AuthServertestRoute
   '/auth/test': typeof AuthTestRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/sign-in/sso-callback': typeof SignInSsoCallbackRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
   '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/auth/servertest'
     | '/auth/test'
     | '/sign-in/$'
+    | '/sign-in/sso-callback'
     | '/demo/api/names'
     | '/demo/start/api-request'
     | '/demo/start/server-funcs'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/auth/servertest'
     | '/auth/test'
     | '/sign-in/$'
+    | '/sign-in/sso-callback'
     | '/demo/api/names'
     | '/demo/start/api-request'
     | '/demo/start/server-funcs'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/auth/servertest'
     | '/auth/test'
     | '/sign-in/$'
+    | '/sign-in/sso-callback'
     | '/demo/api/names'
     | '/demo/start/api-request'
     | '/demo/start/server-funcs'
@@ -177,6 +189,7 @@ export interface RootRouteChildren {
   AuthServertestRoute: typeof AuthServertestRoute
   AuthTestRoute: typeof AuthTestRoute
   SignInSplatRoute: typeof SignInSplatRoute
+  SignInSsoCallbackRoute: typeof SignInSsoCallbackRoute
   DemoApiNamesRoute: typeof DemoApiNamesRoute
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute
   DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in/sso-callback': {
+      id: '/sign-in/sso-callback'
+      path: '/sign-in/sso-callback'
+      fullPath: '/sign-in/sso-callback'
+      preLoaderRoute: typeof SignInSsoCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-in/$': {
@@ -281,6 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthServertestRoute: AuthServertestRoute,
   AuthTestRoute: AuthTestRoute,
   SignInSplatRoute: SignInSplatRoute,
+  SignInSsoCallbackRoute: SignInSsoCallbackRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,
   DemoStartServerFuncsRoute: DemoStartServerFuncsRoute,
