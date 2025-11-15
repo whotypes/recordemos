@@ -1,14 +1,14 @@
 import React from "react";
 
-import { useCustomer, usePricingTable, ProductDetails } from "autumn-js/react";
-import { createContext, useContext, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { CheckoutDialog } from "@/components/autumn/checkout-dialog";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { getPricingTableContent } from "@/lib/autumn/pricing-table-content";
+import { cn } from "@/lib/utils";
 import type { Product, ProductItem } from "autumn-js";
+import { ProductDetails, useCustomer, usePricingTable } from "autumn-js/react";
 import { Loader2 } from "lucide-react";
+import { createContext, useContext, useState } from "react";
 
 export function PricingTable({
   productDetails,
@@ -76,14 +76,24 @@ export function PricingTable({
                   product.scenario === "scheduled",
 
                 onClick: async () => {
+                  console.log('onClick', product.id, customer);
                   if (product.id && customer) {
-                    await checkout({
+                    console.log('Calling checkout with productId:', product.id);
+                    const result = await checkout({
                       productId: product.id,
                       dialog: CheckoutDialog,
+                      successUrl: window.location.origin + '/studio',
                     });
+                    console.log('Checkout result:', result);
+
+                    if (result?.data?.url && !product.properties?.is_free) {
+                      window.location.href = result.data.url;
+                    }
                   } else if (product.display?.button_url) {
+                    console.log('button_url', product.display?.button_url);
                     window.open(product.display?.button_url, "_blank");
                   }
+                  console.log('onClick end', product.id, customer);
                 },
               }}
             />
@@ -199,8 +209,9 @@ export const PricingCard = ({
   }
 
   const { name, display: productDisplay } = product;
+  const { customer } = useCustomer({ errorOnNotFound: false });
 
-  const { buttonText } = getPricingTableContent(product);
+  const { buttonText } = getPricingTableContent(product, customer);
 
   const isRecommended = productDisplay?.recommend_text ? true : false;
   const mainPriceDisplay = product.properties?.is_free

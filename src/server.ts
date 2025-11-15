@@ -1,20 +1,35 @@
-import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
+// src/server.ts
+import { auth } from '@clerk/tanstack-react-start/server'
+import {
+	createStartHandler,
+	defaultStreamHandler,
+	defineHandlerCallback,
+} from '@tanstack/react-start/server'
+import { createServerEntry } from '@tanstack/react-start/server-entry'
 
 type MyRequestContext = {
-	hello: string;
-	foo: number;
-};
-
-declare module "@tanstack/react-start" {
-	interface Register {
-		server: {
-			requestContext: MyRequestContext;
-		};
-	}
+	clerkUserId?: string
 }
 
+declare module '@tanstack/react-start' {
+  interface Register {
+    server: {
+      requestContext: MyRequestContext
+    }
+  }
+}
+
+const customHandler = defineHandlerCallback(async (ctx) => {
+
+	const authResult = await auth()
+
+	console.log({ authResult })
+
+  return defaultStreamHandler(ctx)
+})
+
+const fetch = createStartHandler<MyRequestContext>(customHandler)
+
 export default createServerEntry({
-	async fetch(request) {
-		return handler.fetch(request, { context: { hello: "world", foo: 123 } });
-	},
-});
+  fetch,
+})

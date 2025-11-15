@@ -3,10 +3,11 @@ import { v } from "convex/values";
 
 export default defineSchema({
   users: defineTable({
-      username: v.string(),
-      email: v.string(),
-      image: v.string(),
-      // clerk id, from subject jwt field
-      externalId: v.string(),
+    username: v.string(),
+    planId: v.optional(v.union(v.literal("free"), v.literal("pro"))),
+    email: v.string(),
+    image: v.string(),
+    // clerk id, from subject jwt field
+    externalId: v.string(),
   }).index("byExternalId", ["externalId"]),
 });

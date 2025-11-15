@@ -1,9 +1,4 @@
 "use client";
-import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import type { CheckoutParams, CheckoutResult, ProductItem } from "autumn-js";
-import { ArrowRight, ChevronDown, Loader2 } from "lucide-react";
-import type React from "react";
-import { useEffect, useState } from "react";
 import {
 	Accordion,
 	AccordionContent,
@@ -22,9 +17,14 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { useCustomer } from "autumn-js/react";
-import { cn } from "@/lib/utils";
 import { getCheckoutContent } from "@/lib/autumn/checkout-content";
+import { cn } from "@/lib/utils";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import type { CheckoutParams, CheckoutResult, ProductItem } from "autumn-js";
+import { useCustomer } from "autumn-js/react";
+import { ArrowRight, ChevronDown, Loader2 } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
 
 export interface CheckoutDialogProps {
 	open: boolean;
@@ -70,6 +70,30 @@ export function CheckoutDialog(params: CheckoutDialogProps) {
 	const isFree = checkoutResult?.product.properties?.is_free;
 	const isPaid = isFree === false;
 
+	const handleConfirm = async () => {
+		setLoading(true);
+
+		if (isPaid && checkoutResult.url) {
+			window.location.href = checkoutResult.url;
+			return;
+		}
+
+		const options = checkoutResult.options.map((option) => {
+			return {
+				featureId: option.feature_id,
+				quantity: option.quantity,
+			};
+		});
+
+		await attach({
+			productId: checkoutResult.product.id,
+			...(params.checkoutParams || {}),
+			options,
+		});
+		setOpen(false);
+		setLoading(false);
+	};
+
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogContent className="p-0 pt-4 gap-0 text-foreground text-sm">
@@ -88,24 +112,7 @@ export function CheckoutDialog(params: CheckoutDialogProps) {
 				<DialogFooter className="flex flex-col sm:flex-row justify-between gap-x-4 py-2 pl-6 pr-3 bg-secondary border-t shadow-inner">
 					<Button
 						size="sm"
-						onClick={async () => {
-							setLoading(true);
-
-							const options = checkoutResult.options.map((option) => {
-								return {
-									featureId: option.feature_id,
-									quantity: option.quantity,
-								};
-							});
-
-							await attach({
-								productId: checkoutResult.product.id,
-								...(params.checkoutParams || {}),
-								options,
-							});
-							setOpen(false);
-							setLoading(false);
-						}}
+						onClick={handleConfirm}
 						disabled={loading}
 						className="min-w-16 flex items-center gap-2"
 					>
@@ -114,7 +121,7 @@ export function CheckoutDialog(params: CheckoutDialogProps) {
 						) : (
 							<>
 								<span className="whitespace-nowrap flex gap-1">
-									Confirm
+										{isPaid ? 'Continue to Checkout' : 'Confirm'}
 								</span>
 							</>
 						)}
@@ -344,6 +351,8 @@ const PrepaidItem = ({
 				options: newOptions,
 				dialog: CheckoutDialog,
 			});
+
+			console.log('checkout data', data);
 
 			if (error) {
 				console.error(error);
