@@ -4,6 +4,7 @@ interface AppHeaderProps {
   videoSrc: string | null
   onVideoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void
   onStartRecording: () => void
+  onStopRecording: () => void
   isRecording: boolean
   onExport: () => void
 }
@@ -12,6 +13,7 @@ export default function AppHeader({
   videoSrc,
   onVideoUpload,
   onStartRecording,
+  onStopRecording,
   isRecording,
   onExport,
 }: AppHeaderProps) {
@@ -40,7 +42,7 @@ export default function AppHeader({
           </a>
         )}
         <div className="flex gap-2">
-          {!videoSrc && (
+          {!videoSrc && !isRecording && (
             <>
               <label className="px-3 py-1.5 text-xs font-medium bg-accent text-accent-foreground rounded transition-colors hover:bg-accent/90 cursor-pointer">
                 <input
@@ -53,14 +55,25 @@ export default function AppHeader({
               </label>
               <button
                 onClick={onStartRecording}
-                disabled={isRecording}
-                className="px-3 py-1.5 text-xs font-medium bg-destructive text-destructive-foreground rounded transition-colors hover:bg-destructive/90 disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-medium bg-destructive text-destructive-foreground rounded transition-colors hover:bg-destructive/90"
               >
-                {isRecording ? "Recording..." : "Record"}
+                Record
               </button>
             </>
           )}
-          {videoSrc && (
+          {isRecording && (
+            <button
+              onClick={onStopRecording}
+              className="px-3 py-1.5 text-xs font-medium bg-destructive text-destructive-foreground rounded transition-colors hover:bg-destructive/90 flex items-center gap-2"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive-foreground opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive-foreground"></span>
+              </span>
+              Stop Recording
+            </button>
+          )}
+          {videoSrc && !isRecording && (
             <button
               onClick={onExport}
               className="px-3 py-1.5 text-xs font-medium bg-accent text-accent-foreground rounded transition-colors hover:bg-accent/90"

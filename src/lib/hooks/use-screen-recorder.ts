@@ -1,9 +1,11 @@
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
 
 export const useScreenRecorder = () => {
   const [isRecording, setIsRecording] = useState(false)
   const { setVideoSrc, setCurrentTime, setVideoDuration } = useVideoPlayerStore()
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   const startScreenRecord = async () => {
     try {
@@ -18,9 +20,12 @@ export const useScreenRecorder = () => {
         audio: false,
       })
 
+      streamRef.current = stream
+
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "video/webm",
       })
+      mediaRecorderRef.current = mediaRecorder
       const chunks: BlobPart[] = []
 
       mediaRecorder.ondataavailable = (event) => {
@@ -42,6 +47,10 @@ export const useScreenRecorder = () => {
         setIsRecording(false)
         setCurrentTime(0)
         setVideoDuration(0) // Will be set by metadata handler
+
+        // Clean up refs
+        mediaRecorderRef.current = null
+        streamRef.current = null
       }
 
       mediaRecorder.start()
@@ -54,11 +63,23 @@ export const useScreenRecorder = () => {
     } catch (err) {
       console.error("Screen capture error:", err)
       setIsRecording(false)
+      mediaRecorderRef.current = null
+      streamRef.current = null
+    }
+  }
+
+  const stopScreenRecord = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop()
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
     }
   }
 
   return {
     startScreenRecord,
+    stopScreenRecord,
     isRecording
   }
 }

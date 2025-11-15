@@ -17,16 +17,17 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("byOwnerId", ["ownerId"]),
   assets: defineTable({
-  ownerId: v.id("users"),
-  projectId: v.id("projects"),
-  type: v.union(
-    v.literal("video"),
-    v.literal("audio"),
-    v.literal("image")
-  ),
-  url: v.string(), // our R2 URL
-  sizeBytes: v.number(),
-  durationMs: v.optional(v.number()),
-  createdAt: v.number(),
+    ownerId: v.id("users"),
+    projectId: v.id("projects"),
+    type: v.union(
+      v.literal("video"),
+      v.literal("audio"),
+      v.literal("image")
+    ),
+    url: v.string(), // our R2 URL
+    objectKey: v.string(), // the object key in R2
+    sizeBytes: v.number(),
+    durationMs: v.optional(v.number()),
+    createdAt: v.number(),
   }).index("byProject", ["projectId"]).index("byOwner", ["ownerId"]),
 });

@@ -39,7 +39,7 @@ function Studio() {
 
     // Custom hooks
     const { videoRef } = useVideoPlayer(videoSrc)
-    const { startScreenRecord, isRecording } = useScreenRecorder()
+    const { startScreenRecord, stopScreenRecord, isRecording } = useScreenRecorder()
     const { handleVideoUpload } = useVideoUpload()
 
     const backgroundColor = useVideoOptionsStore((state) => state.backgroundColor)
@@ -65,6 +65,7 @@ function Studio() {
                 videoSrc={videoSrc}
                 onVideoUpload={handleVideoUpload}
                 onStartRecording={startScreenRecord}
+                onStopRecording={stopScreenRecord}
                 isRecording={isRecording}
                 onExport={() => setShowExport(true)}
             />
