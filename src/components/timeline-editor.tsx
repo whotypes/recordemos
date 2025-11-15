@@ -29,21 +29,21 @@ const BLOCK_TYPES = [
     label: "Crop",
     icon: Move,
     description: "Crop & Pan",
-    color: "bg-blue-500/80"
+    color: "bg-secondary"
   },
   {
     id: "zoom",
     label: "Zoom",
     icon: ZoomIn,
     description: "Zoom In",
-    color: "bg-purple-500/80"
+    color: "bg-primary"
   },
   {
     id: "trim",
     label: "Trim",
     icon: Scissors,
     description: "Cut segment",
-    color: "bg-green-500/80"
+    color: "bg-destructive"
   },
 ]
 

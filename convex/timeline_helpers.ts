@@ -75,7 +75,7 @@ export const initializeProjectTimeline = mutation({
         },
         metadata: {
           label: "Video",
-          color: "bg-primary/70",
+          color: "bg-orange-500",
         },
         createdAt: Date.now(),
       })
