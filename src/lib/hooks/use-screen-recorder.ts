@@ -3,7 +3,7 @@ import { useRef, useState } from "react"
 
 export const useScreenRecorder = () => {
   const [isRecording, setIsRecording] = useState(false)
-  const { setVideoSrc, setCurrentTime, setVideoDuration } = useVideoPlayerStore()
+  const { setVideoSrc, setCurrentTime, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat } = useVideoPlayerStore()
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
@@ -99,6 +99,12 @@ export const useScreenRecorder = () => {
         setIsRecording(false)
         setCurrentTime(0)
         setVideoDuration(0) // Will be set by metadata handler
+
+        // Set file metadata for recorded video
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        setVideoFileName(`screen-recording-${timestamp}.webm`)
+        setVideoFileSize(blob.size)
+        setVideoFileFormat("webm")
 
         // Clean up refs
         mediaRecorderRef.current = null

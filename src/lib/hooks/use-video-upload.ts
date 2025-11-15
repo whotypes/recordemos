@@ -1,7 +1,7 @@
 import { useVideoPlayerStore } from "@/lib/video-player-store"
 
 export const useVideoUpload = () => {
-  const { setVideoSrc, setCurrentTime, setVideoDuration } = useVideoPlayerStore()
+  const { setVideoSrc, setCurrentTime, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat } = useVideoPlayerStore()
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -24,6 +24,12 @@ export const useVideoUpload = () => {
     setVideoSrc(url)
     setCurrentTime(0)
     setVideoDuration(0) // Will be set by metadata handler
+
+    // Save file metadata
+    setVideoFileName(file.name)
+    setVideoFileSize(file.size)
+    const format = file.type.split('/')[1] || file.name.split('.').pop() || 'unknown'
+    setVideoFileFormat(format)
 
     // Clean up the input
     e.target.value = ""
