@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react"
-import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { usePlayheadStore } from "@/lib/playhead-store"
+import { useTimelineDurationStore } from "@/lib/timeline-duration-store"
+import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { useEffect, useRef } from "react"
 
 export const useVideoPlayer = (videoSrc: string | null) => {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -12,14 +13,36 @@ export const useVideoPlayer = (videoSrc: string | null) => {
 
   const { isPlaying, setIsPlaying, setPlayheadMs } = usePlayheadStore()
 
-  // Handle metadata to get actual video duration
+  // cleanup when video source changes or component unmounts
   useEffect(() => {
-    if (videoRef.current) {
-      const handleLoadedMetadata = () => {
-        setVideoDuration(videoRef.current?.duration || 0)
+    return () => {
+    // pause and clear video when src changes
+      if (videoRef.current) {
+        videoRef.current.pause()
+        // remove src to free memory
+        videoRef.current.removeAttribute('src')
+        videoRef.current.load()
       }
-      videoRef.current.addEventListener("loadedmetadata", handleLoadedMetadata)
-      return () => videoRef.current?.removeEventListener("loadedmetadata", handleLoadedMetadata)
+    }
+  }, [videoSrc])
+
+  // handle metadata to get actual video duration
+  useEffect(() => {
+    if (videoRef.current && videoSrc) {
+      const video = videoRef.current
+
+      const handleLoadedMetadata = () => {
+        const duration = video.duration || 0
+        setVideoDuration(duration)
+        // also update timeline duration store
+        useTimelineDurationStore.getState().setVideoDuration(duration)
+      }
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata)
+
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata)
+      }
     }
   }, [videoSrc, setVideoDuration])
 
@@ -34,15 +57,24 @@ export const useVideoPlayer = (videoSrc: string | null) => {
     }
   }, [isPlaying])
 
-  // Video event listeners (ended, play, pause only - no timeupdate)
+  // let video drive playhead during playback - no seeking, smooth playback
   useEffect(() => {
-    if (!videoRef.current) return
+    if (!videoRef.current || !videoSrc) return
+
+    const video = videoRef.current
+
+    const handleTimeUpdate = () => {
+      if (isPlaying && video) {
+        // during playback, let video drive the playhead
+        const videoTimeMs = video.currentTime * 1000
+        setPlayheadMs(videoTimeMs, "playback")
+      }
+    }
 
     const handleEnded = () => {
-      if (loop && videoRef.current) {
-        // Set playhead to 0 - video will follow automatically via preview-canvas sync
+      if (loop && video) {
         setPlayheadMs(0, "playback")
-        videoRef.current.play().catch(() => {})
+        video.play().catch(() => { })
       } else {
         setIsPlaying(false)
       }
@@ -56,16 +88,25 @@ export const useVideoPlayer = (videoSrc: string | null) => {
       setIsPlaying(false)
     }
 
-    videoRef.current.addEventListener("ended", handleEnded)
-    videoRef.current.addEventListener("play", handlePlay)
-    videoRef.current.addEventListener("pause", handlePause)
+    const handleError = (e: Event) => {
+      console.error("Video playback error:", e)
+      setIsPlaying(false)
+    }
+
+    video.addEventListener("timeupdate", handleTimeUpdate)
+    video.addEventListener("ended", handleEnded)
+    video.addEventListener("play", handlePlay)
+    video.addEventListener("pause", handlePause)
+    video.addEventListener("error", handleError)
 
     return () => {
-      videoRef.current?.removeEventListener("ended", handleEnded)
-      videoRef.current?.removeEventListener("play", handlePlay)
-      videoRef.current?.removeEventListener("pause", handlePause)
+      video.removeEventListener("timeupdate", handleTimeUpdate)
+      video.removeEventListener("ended", handleEnded)
+      video.removeEventListener("play", handlePlay)
+      video.removeEventListener("pause", handlePause)
+      video.removeEventListener("error", handleError)
     }
-  }, [videoSrc, setIsPlaying, loop, setPlayheadMs])
+  }, [videoSrc, setIsPlaying, isPlaying, loop, setPlayheadMs])
 
   return {
     videoRef

@@ -53,6 +53,10 @@ interface VideoOptionsState {
   hideToolbars: boolean
   setHideToolbars: (hide: boolean) => void
 
+  // Editor mode
+  editorMode: 'preview' | 'edit'
+  setEditorMode: (mode: 'preview' | 'edit') => void
+
   // Helper functions
   reset: () => void
 
@@ -165,6 +169,9 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
 
   hideToolbars: false,
   setHideToolbars: (hide) => set({ hideToolbars: hide }),
+
+    editorMode: 'preview' as 'preview' | 'edit',
+    setEditorMode: (mode) => set({ editorMode: mode }),
 
   // Helper functions
     reset: () => set({}),

@@ -18,7 +18,7 @@ import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
 import type { Id } from "convex/_generated/dataModel"
 import { Plus, RotateCcw, Upload, Video as VideoIcon, Trash2, Loader2 } from "lucide-react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { useMutation } from "convex/react"
 import { api } from "convex/_generated/api"
@@ -29,7 +29,9 @@ interface VideoPanelProps {
 }
 
 export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
-  const { startScreenRecord, stopScreenRecord, isRecording, recordedVideo, clearRecordedVideo } = useScreenRecorder()
+  const { startScreenRecord, stopScreenRecord, isRecording, recordedVideo, clearRecordedVideo } = useScreenRecorder({
+    projectId: projectId ? (projectId as Id<"projects">) : "guest",
+  })
   const { uploadVideoFile, projectVerification } = useVideoUpload(projectId as Id<"projects"> | undefined)
   const videoSrc = useVideoPlayerStore((state) => state.videoSrc)
   const videoFileName = useVideoPlayerStore((state) => state.videoFileName)
@@ -46,13 +48,28 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
   const setBackgroundColor = useVideoOptionsStore((state) => state.setBackgroundColor)
   const setBackgroundType = useVideoOptionsStore((state) => state.setBackgroundType)
   const setGradientAngle = useVideoOptionsStore((state) => state.setGradientAngle)
-  // Removed setBlocks - timeline blocks are managed by Convex
   const uploadRef = useRef<HTMLInputElement>(null)
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
   const deleteAsset = useMutation(api.assets.deleteAsset)
+
+  // cleanup on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // stop any active recording
+      if (isRecording) {
+        stopScreenRecord()
+      }
+
+      // clear recorded video and revoke its blob URL
+      clearRecordedVideo()
+
+      // note: we don't clear videoSrc here because it might be needed
+      // the useScreenRecorder hook handles its own cleanup
+    }
+  }, [])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -63,32 +80,32 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
       return
     }
 
-    if (!cloudUploadEnabled || !projectId) {
-      // just preview locally without uploading
-      await uploadVideoFile(file)
-      if (!cloudUploadEnabled) {
-        toast.info("Video loaded for local editing only. Enable cloud upload to save to project.")
+    try {
+      if (!cloudUploadEnabled || !projectId) {
+        // just preview locally without uploading
+        await uploadVideoFile(file)
       } else {
-        toast.info("Video loaded for preview only. Create a project to save your work.")
-      }
-    } else {
-      // check if project verification failed
-      if (projectVerification && !projectVerification.valid) {
-        toast.error(projectVerification.error || "Cannot upload to this project")
-        e.target.value = ""
-        return
-      }
+        // check if project verification failed
+        if (projectVerification && !projectVerification.valid) {
+          toast.error(projectVerification.error || "Cannot upload to this project")
+          e.target.value = ""
+          return
+        }
 
-      // upload to R2 and create asset
-      await uploadVideoFile(file, {
-        projectId: projectId as Id<"projects">,
-        onUploadComplete: (assetId) => {
-          setCurrentClipAssetId(assetId)
-        },
-      })
+        // upload to R2 and create asset
+        await uploadVideoFile(file, {
+          projectId: projectId as Id<"projects">,
+          onUploadComplete: (assetId) => {
+            setCurrentClipAssetId(assetId)
+          },
+        })
+      }
+    } catch (error) {
+      console.error("File upload error:", error)
+      // error toasts are already shown by uploadVideoFile
+    } finally {
+      e.target.value = ""
     }
-
-    e.target.value = ""
   }
 
   const handleAddRecordingToProject = async () => {
@@ -97,39 +114,40 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
       return
     }
 
-    const file = new File([recordedVideo.blob], recordedVideo.fileName, {
-      type: "video/webm",
-    })
+    try {
+      const file = new File([recordedVideo.blob], recordedVideo.fileName, {
+        type: "video/webm",
+      })
 
-    // if cloud upload is disabled or no project, just keep it local
-    if (!cloudUploadEnabled || !projectId) {
-      if (!cloudUploadEnabled) {
-        toast.info("Recording available for local editing. Enable cloud upload to save to project.")
-      } else {
-        toast.info("Recording available for local editing. Create a project to save to cloud.")
-      }
-      clearRecordedVideo()
-      return
-    }
-
-    // check if project verification failed
-    if (projectVerification && !projectVerification.valid) {
-      toast.warning(`${projectVerification.error || "Cannot upload to this project"}. Recording available for local editing.`)
-      clearRecordedVideo()
-      return
-    }
-
-    // attempt cloud upload
-    const result = await uploadVideoFile(file, {
-      projectId: projectId as Id<"projects">,
-      onUploadComplete: (assetId) => {
-        setCurrentClipAssetId(assetId)
+      // if cloud upload is disabled or no project, recording stays local
+      if (!cloudUploadEnabled || !projectId) {
         clearRecordedVideo()
-      },
-    })
+        return
+      }
 
-    // if upload failed, recording is still available locally
-    if (result.uploadFailed) {
+      // check if project verification failed
+      if (projectVerification && !projectVerification.valid) {
+        toast.error(`${projectVerification.error || "Cannot upload to this project"}`)
+        clearRecordedVideo()
+        return
+      }
+
+      // attempt cloud upload - toasts handled by uploadVideoFile
+      const result = await uploadVideoFile(file, {
+        projectId: projectId as Id<"projects">,
+        onUploadComplete: (assetId) => {
+          setCurrentClipAssetId(assetId)
+          clearRecordedVideo()
+        },
+      })
+
+      // if upload failed, recording is still available locally
+      if (result.uploadFailed) {
+        clearRecordedVideo()
+      }
+    } catch (error) {
+      console.error("Recording upload error:", error)
+      // clear the recorded video to prevent memory leaks on error
       clearRecordedVideo()
     }
   }
@@ -194,13 +212,13 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
     <div className="w-full space-y-6">
       <h3 className="text-xs font-medium uppercase text-dark/70">Video</h3>
 
-      <div className="mb-3 flex h-[4rem] gap-4 px-1 text-sm">
+      <div className="mb-3 grid grid-cols-2 gap-2 px-1 text-sm">
         {!videoSrc && !isRecording && (
           <>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="relative flex h-full flex-col rounded-xl border-2 border-primary/30 p-1 px-6 hover:border-primary/60">
+                  <div className="relative flex h-16 flex-col rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60">
                     <label
                       htmlFor="video-upload"
                       className="group flex h-full w-full cursor-pointer items-center justify-center rounded-xl"
@@ -211,12 +229,12 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
                         }
                       }}
                     >
-                      <div className='flex gap-1 items-center justify-center'>
+                      <div className='flex gap-1.5 items-center justify-center'>
                         <Plus
-                          className="cursor-pointer text-primary/50 focus:ring-1 group-hover:text-primary/80"
+                          className="cursor-pointer text-primary/50 group-hover:text-primary/80 shrink-0"
                           size={16}
                         />
-                        <p className='text-muted-foreground'>Upload</p>
+                        <p className='text-muted-foreground text-xs'>Upload</p>
                       </div>
                     </label>
                     <input
@@ -241,12 +259,12 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
-                    className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
+                    className="relative flex gap-2 h-16 w-full cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
                     onClick={startScreenRecord}
                   >
-                    <div className='flex gap-1 items-center justify-center'>
-                      <VideoIcon className="cursor-pointer text-primary/50 focus:ring-1 group-hover:text-primary/80" size={16} />
-                      <p className='text-muted-foreground'>Record</p>
+                    <div className='flex gap-1.5 items-center justify-center'>
+                      <VideoIcon className="cursor-pointer text-primary/50 group-hover:text-primary/80 shrink-0" size={16} />
+                      <p className='text-muted-foreground text-xs'>Record</p>
                     </div>
                   </div>
                 </TooltipTrigger>
@@ -263,15 +281,15 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-destructive/30 p-1 hover:border-destructive/60"
+                  className="relative flex gap-2 h-16 col-span-2 cursor-pointer items-center justify-center rounded-xl border-2 border-destructive/30 p-1 hover:border-destructive/60"
                   onClick={stopScreenRecord}
                 >
-                  <div className='flex gap-1 items-center justify-center'>
-                    <span className="relative flex h-2 w-2">
+                  <div className='flex gap-1.5 items-center justify-center'>
+                    <span className="relative flex h-2 w-2 shrink-0">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                     </span>
-                    <p className='text-muted-foreground'>Stop</p>
+                    <p className='text-muted-foreground text-xs'>Stop Recording</p>
                   </div>
                 </div>
               </TooltipTrigger>
@@ -289,12 +307,12 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div
-                      className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
+                      className="relative flex gap-2 h-16 col-span-2 cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
                       onClick={handleAddRecordingToProject}
                     >
-                      <div className='flex gap-1 items-center justify-center'>
-                        <Upload className="cursor-pointer text-primary/50 focus:ring-1 group-hover:text-primary/80" size={16} />
-                        <p className='text-muted-foreground'>Add to Project</p>
+                      <div className='flex gap-1.5 items-center justify-center'>
+                        <Upload className="cursor-pointer text-primary/50 group-hover:text-primary/80 shrink-0" size={16} />
+                        <p className='text-muted-foreground text-xs'>Save to Project</p>
                       </div>
                     </div>
                   </TooltipTrigger>
@@ -309,12 +327,12 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
-                    className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
+                    className="relative flex gap-2 h-16 cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
                     onClick={onExport}
                   >
-                    <div className='flex gap-1 items-center justify-center'>
-                      <VideoIcon className="cursor-pointer text-primary/50 focus:ring-1 group-hover:text-primary/80" size={16} />
-                      <p className='text-muted-foreground'>Export</p>
+                    <div className='flex gap-1.5 items-center justify-center'>
+                      <VideoIcon className="cursor-pointer text-primary/50 group-hover:text-primary/80 shrink-0" size={16} />
+                      <p className='text-muted-foreground text-xs'>Export</p>
                     </div>
                   </div>
                 </TooltipTrigger>
@@ -328,12 +346,12 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
-                    className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
+                    className="relative flex gap-2 h-16 cursor-pointer items-center justify-center rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60"
                     onClick={handleReset}
                   >
-                    <div className='flex gap-1 items-center justify-center'>
-                      <RotateCcw className="cursor-pointer text-primary/50 focus:ring-1 group-hover:text-primary/80" size={16} />
-                      <p className='text-muted-foreground'>Reset</p>
+                    <div className='flex gap-1.5 items-center justify-center'>
+                      <RotateCcw className="cursor-pointer text-primary/50 group-hover:text-primary/80 shrink-0" size={16} />
+                      <p className='text-muted-foreground text-xs'>Reset</p>
                     </div>
                   </div>
                 </TooltipTrigger>
@@ -348,12 +366,12 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div
-                      className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-destructive/30 p-1 hover:border-destructive/60"
+                      className="relative flex gap-2 h-16 col-span-2 cursor-pointer items-center justify-center rounded-xl border-2 border-destructive/30 p-1 hover:border-destructive/60"
                       onClick={() => setShowDeleteDialog(true)}
                     >
-                      <div className='flex gap-1 items-center justify-center'>
-                        <Trash2 className="cursor-pointer text-destructive/50 focus:ring-1 group-hover:text-destructive/80" size={16} />
-                        <p className='text-muted-foreground'>Delete</p>
+                      <div className='flex gap-1.5 items-center justify-center'>
+                        <Trash2 className="cursor-pointer text-destructive/50 group-hover:text-destructive/80 shrink-0" size={16} />
+                        <p className='text-muted-foreground text-xs'>Delete</p>
                       </div>
                     </div>
                   </TooltipTrigger>

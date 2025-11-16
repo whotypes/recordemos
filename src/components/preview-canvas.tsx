@@ -25,7 +25,6 @@ import { useCallback, useEffect, useMemo } from "react"
 
 interface PreviewCanvasProps {
   videoRef: React.RefObject<HTMLVideoElement | null>
-  videoSrc: string | null
 }
 
 const getAspectRatioDimensions = (ratio: string) => {
@@ -39,7 +38,7 @@ const getAspectRatioDimensions = (ratio: string) => {
   return ratios[ratio] || "aspect-video"
 }
 
-export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps) {
+export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
   const { theme } = useTheme()
   const {
     backgroundColor,
@@ -59,6 +58,7 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
     setImageBackground,
   } = useVideoOptionsStore()
   const {
+    videoSrc,
     setVideoSrc,
     setVideoDuration,
     setVideoFileName,
@@ -70,6 +70,9 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
     uploadStatus,
     cloudUploadEnabled,
   } = useVideoPlayerStore()
+
+  // use store videoSrc directly - it's the source of truth
+  const effectiveVideoSrc = videoSrc
   const { setPlayheadMs } = usePlayheadStore()
   const { selectedFrame, frameRoundness, arcDarkMode, frameHeight } = useFrameOptionsStore()
   const { activeVideoBlock } = useCompositionStore()
@@ -126,7 +129,8 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
 
       const currentSrc = useVideoPlayerStore.getState().videoSrc
       if (currentSrc && currentSrc.startsWith("blob:")) {
-        URL.revokeObjectURL(currentSrc)
+        // delay revocation to avoid revoking while video is loading
+        setTimeout(() => URL.revokeObjectURL(currentSrc), 500)
       }
 
       const url = URL.createObjectURL(file)
@@ -142,14 +146,41 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
 
       // if cloud is off, initialize local timeline when video metadata loads
       if (!cloudUploadEnabled) {
-        const video = document.createElement('video')
-        video.preload = 'metadata'
-        video.onloadedmetadata = () => {
-          URL.revokeObjectURL(video.src)
-          setVideoDuration(video.duration)
-          initializeLocalTimeline(video.duration)
+        const extractMetadata = async () => {
+          const video = document.createElement('video')
+          video.preload = 'metadata'
+          video.muted = true
+
+          const loadPromise = new Promise<number>((resolve, reject) => {
+            video.onloadedmetadata = () => {
+              const duration = video.duration
+              if (duration && !isNaN(duration) && duration > 0) {
+                resolve(duration)
+              } else {
+                reject(new Error('Invalid duration'))
+              }
+            }
+            video.onerror = () => reject(new Error('Failed to load video metadata'))
+            setTimeout(() => reject(new Error('Metadata loading timeout')), 5000)
+          })
+
+          video.src = url
+
+          try {
+            const duration = await loadPromise
+            setVideoDuration(duration)
+            initializeLocalTimeline(duration)
+          } catch (error) {
+            console.error('[UPLOAD] Failed to extract metadata:', error)
+          } finally {
+            // clean up: remove video element
+            video.src = ''
+            video.load()
+            video.remove()
+          }
         }
-        video.src = url
+
+        extractMetadata()
       }
 
       return {
@@ -169,47 +200,33 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
   setClearFileStatusesRef(dropzone.clearFileStatuses)
 
   const playheadMs = usePlayheadStore((state) => state.playheadMs)
+  const isPlaying = usePlayheadStore((state) => state.isPlaying)
 
-  // Make video element follow playhead (passive follower)
-  // Maps playhead time to source video time using active block
+
+  // Sync video to playhead only when NOT playing or when seeking
   useEffect(() => {
-    if (!videoRef.current) return
+    if (!videoRef.current || isPlaying) return
 
     const video = videoRef.current
+    if (video.readyState < 2) return
 
-    // Only seek if video is ready
-    if (video.readyState < 2) return // Wait for HAVE_CURRENT_DATA or better
-
-    // Calculate target video time based on playhead and active block
     let targetTime = playheadMs / 1000
 
     if (activeVideoBlock) {
-      // Map timeline time to source video time
       targetTime = activeVideoBlock.inAssetTime / 1000
     }
 
-    // Clamp to video duration to prevent seeking past end
     if (video.duration && !isNaN(video.duration)) {
       targetTime = Math.min(targetTime, video.duration)
     }
 
     const timeDiff = Math.abs(video.currentTime - targetTime)
 
-    // Only seek if difference is significant (>50ms) to avoid jitter
+    // Only seek if difference is significant
     if (timeDiff > 0.05) {
-      try {
-        // Use fastSeek if available (faster, less accurate)
-        if ('fastSeek' in video && typeof video.fastSeek === 'function') {
-          video.fastSeek(targetTime)
-        } else {
-          video.currentTime = targetTime
-        }
-        console.log(`[VIDEO] Synced to ${targetTime.toFixed(3)}s (playhead=${(playheadMs / 1000).toFixed(3)}s)`)
-      } catch (e) {
-        // Silently ignore seek errors (video not ready, invalid time, etc)
-      }
+      video.currentTime = targetTime
     }
-  }, [playheadMs, activeVideoBlock])
+  }, [playheadMs, activeVideoBlock, isPlaying])
 
   // Apply transforms from the active video block (memoized to prevent recalculation)
   const videoTransforms = useMemo(() => {
@@ -218,12 +235,33 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
     return {
       transform: `scale(${activeVideoBlock.transforms.scale}) translateX(${activeVideoBlock.transforms.x}px) translateY(${activeVideoBlock.transforms.y}px) rotateZ(${activeVideoBlock.transforms.rotation}deg)`,
       opacity: activeVideoBlock.transforms.opacity,
-      willChange: 'transform', // Only transform for GPU acceleration
+      willChange: 'transform',
       backfaceVisibility: 'hidden' as const,
       perspective: 1000,
       transformStyle: 'preserve-3d' as const,
     }
   }, [activeVideoBlock])
+
+  // Memoize border radius calculations to avoid recalculating on every render
+  const borderRadiusStyles = useMemo(() => {
+    const isNoneArcOrShadow = selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow'
+    const isArc = selectedFrame === 'Arc'
+
+    const topRadius = isNoneArcOrShadow
+      ? (isArc ? `calc(${frameRoundness}rem - 9px)` : `${frameRoundness}rem`)
+      : '0'
+
+    const bottomRadius = isArc
+      ? `calc(${frameRoundness}rem - 9px)`
+      : `${frameRoundness}rem`
+
+    return {
+      borderTopLeftRadius: topRadius,
+      borderTopRightRadius: topRadius,
+      borderBottomLeftRadius: bottomRadius,
+      borderBottomRightRadius: bottomRadius,
+    }
+  }, [selectedFrame, frameRoundness])
 
   return (
     <div className="w-full h-full flex items-center justify-center">
@@ -276,22 +314,9 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
             )}
 
             {/* Upload Progress Overlay */}
-            {isUploading && videoSrc && (
+            {isUploading && effectiveVideoSrc && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/70 backdrop-blur-sm"
-                style={{
-                  borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                    : '0',
-                  borderTopRightRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                    : '0',
-                  borderBottomLeftRadius: selectedFrame === 'Arc'
-                    ? 'calc(' + frameRoundness + 'rem - 9px)'
-                    : frameRoundness + 'rem',
-                  borderBottomRightRadius: selectedFrame === 'Arc'
-                    ? 'calc(' + frameRoundness + 'rem - 9px)'
-                    : frameRoundness + 'rem',
-                }}>
+                style={borderRadiusStyles}>
                 <div className="flex flex-col items-center gap-4 p-8 w-full max-w-sm">
                   <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
                   <div className="text-center space-y-2 w-full">
@@ -312,62 +337,34 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
               </div>
             )}
 
-              {videoSrc ? (
+            {effectiveVideoSrc ? (
               <div
                 className="w-full h-full overflow-hidden"
                 style={activeVideoBlock?.cropRect ? {
                   clipPath: `inset(${activeVideoBlock.cropRect.y}% ${100 - activeVideoBlock.cropRect.x - activeVideoBlock.cropRect.width}% ${100 - activeVideoBlock.cropRect.y - activeVideoBlock.cropRect.height}% ${activeVideoBlock.cropRect.x}%)`,
-                  borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                    : '0',
-                  borderTopRightRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                    : '0',
-                  borderBottomLeftRadius: selectedFrame === 'Arc'
-                    ? 'calc(' + frameRoundness + 'rem - 9px)'
-                    : frameRoundness + 'rem',
-                  borderBottomRightRadius: selectedFrame === 'Arc'
-                    ? 'calc(' + frameRoundness + 'rem - 9px)'
-                    : frameRoundness + 'rem',
-                } : {
-                  borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                    : '0',
-                  borderTopRightRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                    : '0',
-                  borderBottomLeftRadius: selectedFrame === 'Arc'
-                    ? 'calc(' + frameRoundness + 'rem - 9px)'
-                    : frameRoundness + 'rem',
-                  borderBottomRightRadius: selectedFrame === 'Arc'
-                    ? 'calc(' + frameRoundness + 'rem - 9px)'
-                    : frameRoundness + 'rem',
-                }}
+                  ...borderRadiusStyles,
+                } : borderRadiusStyles}
               >
                 <div className="w-full h-full" style={videoTransforms}>
                   <video
                     ref={videoRef}
-                    src={videoSrc}
+                    src={effectiveVideoSrc || undefined}
                     className="w-full h-full object-cover"
-                    style={{
-                      borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                        ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                        : '0',
-                      borderTopRightRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                        ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                        : '0',
-                      borderBottomLeftRadius: selectedFrame === 'Arc'
-                        ? 'calc(' + frameRoundness + 'rem - 9px)'
-                        : frameRoundness + 'rem',
-                      borderBottomRightRadius: selectedFrame === 'Arc'
-                        ? 'calc(' + frameRoundness + 'rem - 9px)'
-                        : frameRoundness + 'rem',
-                    }}
+                    style={borderRadiusStyles}
                     loop={false}
                     muted={muted}
                     playsInline
                     preload="auto"
                     disablePictureInPicture
+                    onLoadedMetadata={(e) => {
+                      const video = e.currentTarget
+                      if (video.duration && !isNaN(video.duration) && video.duration > 0) {
+                        setVideoDuration(video.duration)
+                        if (!cloudUploadEnabled) {
+                          initializeLocalTimeline(video.duration)
+                        }
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -378,20 +375,7 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
                       className="h-full w-full border-2 border-dashed transition-all duration-200 bg-transparent rounded-none group/dropzone
                         border-foreground/5 hover:border-foreground/30
                         hover:bg-foreground/2 dark:hover:bg-foreground/3"
-                      style={{
-                        borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                          ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                          : '0',
-                        borderTopRightRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
-                          ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
-                          : '0',
-                        borderBottomLeftRadius: selectedFrame === 'Arc'
-                          ? 'calc(' + frameRoundness + 'rem - 9px)'
-                          : frameRoundness + 'rem',
-                        borderBottomRightRadius: selectedFrame === 'Arc'
-                          ? 'calc(' + frameRoundness + 'rem - 9px)'
-                          : frameRoundness + 'rem',
-                      }}>
+                      style={borderRadiusStyles}>
                         <DropzoneTrigger className="flex flex-col items-center justify-center gap-4 bg-transparent h-full w-full p-10 text-center">
                         <div className="rounded-full bg-foreground/10 dark:bg-foreground/10 p-6 transition-all duration-200 group-hover/dropzone:bg-foreground/10 dark:group-hover/dropzone:bg-foreground/15">
                           <CloudUploadIcon className="size-10 text-foreground/40 dark:text-foreground/50 transition-colors duration-200 group-hover/dropzone:text-foreground/60 dark:group-hover/dropzone:text-foreground/70" />

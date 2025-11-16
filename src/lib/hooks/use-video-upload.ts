@@ -1,11 +1,10 @@
-import { useVideoPlayerStore } from "@/lib/video-player-store";
-import { usePlayheadStore } from "@/lib/playhead-store";
 import { useLocalTimelineStore } from "@/lib/local-timeline-store";
+import { usePlayheadStore } from "@/lib/playhead-store";
+import { useVideoPlayerStore } from "@/lib/video-player-store";
 import { useUploadFile } from "@convex-dev/r2/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useQuery as useConvexQuery, useMutation } from "convex/react";
-import { useState } from "react";
 import { toast } from "sonner";
 
 interface UploadOptions {
@@ -23,22 +22,102 @@ const extractVideoMetadata = (file: File): Promise<VideoMetadata> => {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+
+    let blobUrl: string | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let resolved = false;
+
+    const cleanup = () => {
+      // remove all event listeners
+      video.onloadedmetadata = null;
+      video.oncanplay = null;
+      video.onerror = null;
+
+      // clear timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      // revoke blob URL
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+      }
+
+      // clear video element
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      video.remove();
+    };
+
+    const checkAndResolve = () => {
+      if (resolved) return;
+
+      const duration = video.duration;
+
+      // validate duration is finite and positive
+      if (duration && isFinite(duration) && !isNaN(duration) && duration > 0) {
+        resolved = true;
+        const metadata = {
+          duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        };
+        cleanup();
+        resolve(metadata);
+      }
+    };
 
     video.onloadedmetadata = () => {
-      URL.revokeObjectURL(video.src);
-      resolve({
-        duration: video.duration,
-        width: video.videoWidth,
-        height: video.videoHeight,
-      });
+      checkAndResolve();
+
+      if (!resolved) {
+        console.warn('Duration invalid after loadedmetadata, waiting for canplay...');
+      }
+    };
+
+    video.oncanplay = () => {
+      checkAndResolve();
+
+      // if still invalid and duration is Infinity, try seeking
+      if (!resolved && video.duration === Infinity) {
+        console.warn('Duration is Infinity, attempting to seek...');
+        video.currentTime = Number.MAX_SAFE_INTEGER;
+        setTimeout(() => {
+          video.currentTime = 0;
+          checkAndResolve();
+
+          if (!resolved) {
+            cleanup();
+            reject(new Error(`Invalid video duration: ${video.duration}`));
+          }
+        }, 100);
+      }
     };
 
     video.onerror = () => {
-      URL.revokeObjectURL(video.src);
-      reject(new Error("Failed to load video metadata"));
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(new Error("Failed to load video metadata"));
+      }
     };
 
-    video.src = URL.createObjectURL(file);
+    // timeout after 10 seconds
+    timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(new Error(`Video metadata extraction timeout. Duration: ${video.duration}`));
+      }
+    }, 10000);
+
+    blobUrl = URL.createObjectURL(file);
+    video.src = blobUrl;
+    video.load();
   });
 };
 
@@ -86,55 +165,57 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
     file: File,
     options?: UploadOptions
   ): Promise<{ blobUrl: string; assetId?: Id<"assets">; uploadFailed?: boolean }> => {
-    // clean up previous blob URL if it exists
-    const currentSrc = useVideoPlayerStore.getState().videoSrc;
-    if (currentSrc && currentSrc.startsWith("blob:")) {
-      URL.revokeObjectURL(currentSrc);
-    }
-
-    // create blob URL for instant playback - this always works locally
-    const blobUrl = URL.createObjectURL(file);
-    setVideoSrc(blobUrl);
-    setPlayheadMs(0, "init");
-    setVideoDuration(0); // will be set by metadata handler
-
-    // save file metadata
-    setVideoFileName(file.name);
-    setVideoFileSize(file.size);
-    const format =
-      file.type.split("/")[1] || file.name.split(".").pop() || "unknown";
-    setVideoFileFormat(format);
-
-    // if cloud upload is disabled, initialize local timeline and return blob URL
-    if (!cloudUploadEnabled) {
-      try {
-        const metadata = await extractVideoMetadata(file);
-        setVideoDuration(metadata.duration);
-        initializeLocalTimeline(metadata.duration);
-        toast.success("Video loaded for local editing only");
-      } catch (error) {
-        console.error("Failed to extract metadata:", error);
-        toast.warning("Video loaded but timeline may not work correctly");
-      }
-      return { blobUrl };
-    }
-
-    // if no projectId provided, initialize local timeline and return blob URL
-    if (!options?.projectId) {
-      try {
-        const metadata = await extractVideoMetadata(file);
-        setVideoDuration(metadata.duration);
-        initializeLocalTimeline(metadata.duration);
-        toast.success("Video loaded for local editing");
-      } catch (error) {
-        console.error("Failed to extract metadata:", error);
-        toast.warning("Video loaded but timeline may not work correctly");
-      }
-      return { blobUrl };
-    }
-
-    // extract duration and upload to cloud
+    let blobUrl: string | null = null;
     try {
+      // clean up previous blob URL if it exists
+      const currentSrc = useVideoPlayerStore.getState().videoSrc;
+      if (currentSrc && currentSrc.startsWith("blob:")) {
+        // delay revocation to avoid revoking while video is loading
+        setTimeout(() => URL.revokeObjectURL(currentSrc), 500);
+      }
+
+      // create blob URL for instant playback - this always works locally
+      blobUrl = URL.createObjectURL(file);
+      setVideoSrc(blobUrl);
+      setPlayheadMs(0, "init");
+      setVideoDuration(0); // will be set by metadata handler
+
+      // save file metadata
+      setVideoFileName(file.name);
+      setVideoFileSize(file.size);
+      const format =
+        file.type.split("/")[1] || file.name.split(".").pop() || "unknown";
+      setVideoFileFormat(format);
+
+      // if cloud upload is disabled, initialize local timeline and return blob URL
+      if (!cloudUploadEnabled) {
+        try {
+          const metadata = await extractVideoMetadata(file);
+          setVideoDuration(metadata.duration);
+          initializeLocalTimeline(metadata.duration);
+          toast.success("Video loaded locally");
+        } catch (error) {
+          console.error("Failed to extract metadata:", error);
+          toast.warning("Video loaded but timeline initialization failed");
+        }
+        return { blobUrl: blobUrl! };
+      }
+
+      // if no projectId provided, initialize local timeline and return blob URL
+      if (!options?.projectId) {
+        try {
+          const metadata = await extractVideoMetadata(file);
+          setVideoDuration(metadata.duration);
+          initializeLocalTimeline(metadata.duration);
+          toast.success("Video loaded locally");
+        } catch (error) {
+          console.error("Failed to extract metadata:", error);
+          toast.warning("Video loaded but timeline initialization failed");
+        }
+        return { blobUrl: blobUrl! };
+      }
+
+      // extract duration and upload to cloud
       setIsUploading(true);
       setUploadProgress(10);
       setUploadStatus("Analyzing video...");
@@ -197,18 +278,20 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
         setUploadStatus(null);
       }, 1000);
 
-      return { blobUrl, assetId };
+      return { blobUrl: blobUrl!, assetId };
     } catch (error) {
-      console.error("Cloud upload error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to upload video";
+      console.error("Upload error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to process video";
 
       // provide specific error messages but emphasize local functionality still works
       if (errorMessage.includes("Project not found")) {
         toast.error("Cloud upload failed: Project not found. Video available for local editing only.");
       } else if (errorMessage.includes("Not authorized")) {
         toast.error("Cloud upload failed: Not authorized. Video available for local editing only.");
+      } else if (errorMessage.includes("metadata")) {
+        toast.error("Failed to analyze video. Please try a different file.");
       } else {
-        toast.error("Cloud upload failed. Video available for local editing only.");
+        toast.error("Failed to process video. Please try again.");
       }
 
       // reset upload state on error
@@ -216,8 +299,20 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
       setUploadProgress(0);
       setUploadStatus(null);
 
-      // local blob URL still works even if cloud upload failed
-      return { blobUrl, uploadFailed: true };
+      // on catastrophic error (metadata extraction failed), revoke blob and clear state
+      if (errorMessage.includes("metadata") || errorMessage.includes("timeout")) {
+        if (blobUrl) {
+          URL.revokeObjectURL(blobUrl);
+        }
+        setVideoSrc(null);
+        throw error;
+      }
+
+      // for cloud upload failures, keep the local blob URL so video still works
+      if (blobUrl) {
+        return { blobUrl, uploadFailed: true };
+      }
+      throw error;
     }
   };
 

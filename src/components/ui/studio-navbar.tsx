@@ -44,6 +44,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { SignedIn, SignedOut, useAuth, useClerk, useUser } from "@clerk/tanstack-react-start"
 import { Link as RouterLink, useLocation } from "@tanstack/react-router"
@@ -52,6 +53,8 @@ import {
   Cloud,
   CloudOff,
   CreditCard,
+  Edit,
+  Eye,
   LogOut,
   Settings,
   Trash2,
@@ -262,6 +265,49 @@ function UserProfileDropdown({
   )
 }
 
+function EditorModeToggle() {
+  const editorMode = useVideoOptionsStore((state) => state.editorMode)
+  const setEditorMode = useVideoOptionsStore((state) => state.setEditorMode)
+
+  const handleToggle = () => {
+    const newMode = editorMode === 'preview' ? 'edit' : 'preview'
+    setEditorMode(newMode)
+  }
+
+  const getTooltipText = () => {
+    return editorMode === 'preview'
+      ? "Switch to edit mode"
+      : "Switch to preview mode"
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={handleToggle}
+            className={cn(
+              "h-8 w-8 flex items-center justify-center transition-colors rounded-md",
+              editorMode === 'edit' && "text-primary hover:bg-primary/10",
+              editorMode === 'preview' && "text-muted-foreground hover:bg-accent"
+            )}
+            aria-label={getTooltipText()}
+          >
+            {editorMode === 'edit' ? (
+              <Edit className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <span>{getTooltipText()}</span>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 function CloudUploadToggle() {
   const { isSignedIn } = useAuth()
   const cloudUploadEnabled = useVideoPlayerStore((state) => state.cloudUploadEnabled)
@@ -349,7 +395,7 @@ interface StudioNavbarProps {
   currentUserId?: Id<"users">
 }
 
-export default function StudioNavbar({ activeProjectId, currentUserId }: StudioNavbarProps = {}) {
+export default function StudioNavbar({ activeProjectId, currentUserId }: StudioNavbarProps) {
   const Link: any = "a"
   const location = useLocation()
 
@@ -372,6 +418,7 @@ export default function StudioNavbar({ activeProjectId, currentUserId }: StudioN
 
         <div className="flex items-center justify-end gap-4 md:flex-1">
           <div className="hidden items-center gap-1.5 sm:flex">
+            <EditorModeToggle />
             <CloudUploadToggle />
             <TeamPresence projectId={activeProjectId ?? null} currentUserId={currentUserId ?? null} />
             <NotificationsToggle userId={currentUserId ?? null} />

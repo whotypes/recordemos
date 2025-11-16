@@ -127,7 +127,8 @@ export const useTimelineBlocks = (
       }
     }
 
-    adjustedStart = Math.max(0, Math.min(videoDuration - block.duration, adjustedStart))
+    // only constrain to non-negative start - allow extending beyond current duration
+    adjustedStart = Math.max(0, adjustedStart)
 
     if (isLocalMode) {
       updateLocalBlock(blockId, {
@@ -139,7 +140,7 @@ export const useTimelineBlocks = (
         startMs: Math.round(adjustedStart * 1000),
       })
     }
-  }, [blocks, videoDuration, isLocalMode, updateLocalBlock, updatePosition])
+  }, [blocks, isLocalMode, updateLocalBlock, updatePosition])
 
   const handleBlockResizeStart = useCallback((_blockId: string, _side: "left" | "right") => {
     // track which side is being resized if needed
@@ -169,7 +170,8 @@ export const useTimelineBlocks = (
     }
 
     adjustedStart = Math.max(0, adjustedStart)
-    adjustedDuration = Math.max(0.2, Math.min(videoDuration - adjustedStart, adjustedDuration))
+    // only enforce minimum duration - allow extending beyond current timeline duration
+    adjustedDuration = Math.max(0.2, adjustedDuration)
 
     if (isLocalMode) {
       updateLocalBlock(blockId, {
@@ -183,7 +185,7 @@ export const useTimelineBlocks = (
         durationMs: Math.round(adjustedDuration * 1000),
       })
     }
-  }, [blocks, videoDuration, isLocalMode, updateLocalBlock, updateSize])
+  }, [blocks, isLocalMode, updateLocalBlock, updateSize])
 
   const handleBlockDelete = useCallback(async (blockId: string) => {
     const block = blocks.find((b) => b.id === blockId)
@@ -208,7 +210,8 @@ export const useTimelineBlocks = (
     const block = blocks.find((b) => b.id === blockId)
     if (!block || block.type === "video") return
 
-    const newStart = Math.min(block.start + block.duration + 0.2, videoDuration - 0.5)
+    // place duplicate right after the original block with a small gap
+    const newStart = block.start + block.duration + 0.2
 
     if (isLocalMode) {
       const sourceBlock = useLocalTimelineStore.getState().getLocalBlock(blockId)
@@ -224,7 +227,7 @@ export const useTimelineBlocks = (
         newStartMs: Math.round(newStart * 1000),
       })
     }
-  }, [blocks, videoDuration, isLocalMode, addLocalBlock, duplicateBlock])
+  }, [blocks, isLocalMode, addLocalBlock, duplicateBlock])
 
   const handleAddBlock = useCallback(async (blockData: BlockData) => {
     if (!overlayTrack) return
