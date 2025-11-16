@@ -1,20 +1,17 @@
 import { useEffect, useRef } from "react"
-import { useCollaborationStore } from "../collaboration-store"
 import type { Id } from "../../../convex/_generated/dataModel"
+import { useCollaborationStore } from "../collaboration-store"
+import { usePlayheadStore } from "../playhead-store"
 
 interface UsePresenceSyncOptions {
   currentUserId: Id<"users"> | null
   videoRef: React.RefObject<HTMLVideoElement | null>
-  setCurrentTime: (time: number) => void
-  setIsPlaying: (playing: boolean) => void
   enabled?: boolean
 }
 
 export const usePresenceSync = ({
   currentUserId,
   videoRef,
-  setCurrentTime,
-  setIsPlaying,
   enabled = true,
 }: UsePresenceSyncOptions) => {
   const presence = useCollaborationStore((state) => state.presence)
@@ -29,7 +26,7 @@ export const usePresenceSync = ({
       (p) => p.userId !== currentUserId && p.isPlaying && p.currentTimeMs !== undefined
     )
 
-    if (!playingUser) return
+    if (!playingUser || playingUser.currentTimeMs === undefined) return
 
     const now = Date.now()
     const timeSinceLastSync = now - lastSyncTimeRef.current
@@ -38,20 +35,20 @@ export const usePresenceSync = ({
     // this prevents constant syncing and allows users to scrub independently
     if (timeSinceLastSync < 5000 || isSyncingRef.current) return
 
-    const currentVideoTime = videoRef.current.currentTime * 1000
-    const timeDiff = Math.abs(currentVideoTime - playingUser.currentTimeMs)
+    const currentTimelineTimeMs = usePlayheadStore.getState().playheadMs
+    const targetTimelineMs = playingUser.currentTimeMs
+    const timeDiff = Math.abs(currentTimelineTimeMs - targetTimelineMs)
 
     // only sync if the time difference is significant (more than 1 second)
     if (timeDiff > 1000) {
       isSyncingRef.current = true
       lastSyncTimeRef.current = now
 
-      const targetTime = playingUser.currentTimeMs / 1000
-      videoRef.current.currentTime = targetTime
-      setCurrentTime(targetTime)
+      // Simply set playhead - video will follow automatically
+      usePlayheadStore.getState().setPlayheadMs(targetTimelineMs, "presence")
 
       if (playingUser.isPlaying) {
-        setIsPlaying(true)
+        usePlayheadStore.getState().setIsPlaying(true)
         videoRef.current.play().catch(console.error)
       }
 
@@ -60,5 +57,5 @@ export const usePresenceSync = ({
         isSyncingRef.current = false
       }, 500)
     }
-  }, [presence, currentUserId, videoRef, setCurrentTime, setIsPlaying, enabled])
+  }, [presence, currentUserId, enabled])
 }

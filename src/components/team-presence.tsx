@@ -20,6 +20,7 @@ import type { Id } from "../../convex/_generated/dataModel"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
+import { useAuth } from "@clerk/tanstack-react-start"
 
 interface TeamPresenceProps {
   projectId: Id<"projects"> | null
@@ -30,16 +31,22 @@ export default function TeamPresence({ projectId, currentUserId }: TeamPresenceP
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [selectedUsers, setSelectedUsers] = useState<Id<"users">[]>([])
+  const { isSignedIn } = useAuth()
 
   const presence = useCollaborationStore((state) => state.presence)
   const setPresence = useCollaborationStore((state) => state.setPresence)
 
+  // Only query presence if user is authenticated and projectId exists
   const presenceList = useQuery(
     api.presence.listPresence,
-    projectId ? { projectId } : "skip"
+    projectId && isSignedIn ? { projectId } : "skip"
   )
 
-  const allUsers = useQuery(api.users.list) || []
+  // Only query users if authenticated
+  const allUsers = useQuery(
+    api.users.list,
+    isSignedIn ? {} : "skip"
+  ) || []
   const sendInvite = useMutation(api.notifications.sendInvite)
 
   useEffect(() => {

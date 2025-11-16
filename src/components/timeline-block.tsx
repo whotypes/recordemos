@@ -5,6 +5,7 @@ import { Copy, GripVertical, Trash2, Scissors } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { useCompositionStore } from "@/lib/composition-store"
+import { usePlayheadStore } from "@/lib/playhead-store"
 
 interface TimelineBlockProps {
   block: {
@@ -61,7 +62,8 @@ export default function TimelineBlock({
   const isTrimmingRef = useRef<"left" | "right" | null>(null)
   const rafRef = useRef<number | undefined>(undefined)
 
-  const { updateBlocks } = useCompositionStore()
+  const { compiler } = useCompositionStore()
+  const { playheadMs, setPlayheadMs } = usePlayheadStore()
 
   const startPercent = (block.start / totalDuration) * 100
   const widthPercent = (block.duration / totalDuration) * 100
@@ -157,7 +159,25 @@ export default function TimelineBlock({
         const timeInBlock = block.start + percentage * block.duration
         onBlockClick?.(block.id, timeInBlock)
       } else {
+        // Handle block move
         onDragEnd(block.id, finalStart)
+
+        // If this is a video block and playhead was inside it, adjust playhead
+        if (block.type === "video") {
+          const oldVisibleStart = (block.start + (block.trimStart || 0)) * 1000
+          const oldVisibleEnd = (block.start + block.duration - (block.trimEnd || 0)) * 1000
+
+          // Check if playhead was inside old visible window
+          if (playheadMs >= oldVisibleStart && playheadMs <= oldVisibleEnd) {
+            const offsetInside = playheadMs - oldVisibleStart
+            const newVisibleStart = (finalStart + (block.trimStart || 0)) * 1000
+            const newVisibleEnd = (finalStart + block.duration - (block.trimEnd || 0)) * 1000
+            const newPlayhead = Math.min(newVisibleStart + offsetInside, newVisibleEnd)
+
+            console.log(`[BLOCK-MOVE] Adjusted playhead from ${(playheadMs/1000).toFixed(2)}s to ${(newPlayhead/1000).toFixed(2)}s`)
+            setPlayheadMs(newPlayhead, "block-move")
+          }
+        }
       }
     }
 
@@ -238,6 +258,7 @@ export default function TimelineBlock({
 
     const handlePointerUp = () => {
       if (!isResizingRef.current || !blockRef.current) return
+      const resizeSide = isResizingRef.current
       isResizingRef.current = null
 
       const finalStart = (lastLeft / 100) * totalDuration
@@ -249,6 +270,25 @@ export default function TimelineBlock({
       document.removeEventListener("pointerup", handlePointerUp)
 
       onResizeEnd(block.id, finalStart, finalDuration)
+
+      // If this is a video block and playhead was inside it, adjust playhead if needed
+      if (block.type === "video") {
+        const oldVisibleStart = (block.start + (block.trimStart || 0)) * 1000
+        const oldVisibleEnd = (block.start + block.duration - (block.trimEnd || 0)) * 1000
+        const newVisibleStart = (finalStart + (block.trimStart || 0)) * 1000
+        const newVisibleEnd = (finalStart + finalDuration - (block.trimEnd || 0)) * 1000
+
+        // Check if playhead was inside old visible window
+        if (playheadMs >= oldVisibleStart && playheadMs <= oldVisibleEnd) {
+          // Clamp playhead to new visible window
+          const newPlayhead = Math.max(newVisibleStart, Math.min(newVisibleEnd, playheadMs))
+
+          if (Math.abs(newPlayhead - playheadMs) > 10) {
+            console.log(`[BLOCK-RESIZE] Adjusted playhead from ${(playheadMs/1000).toFixed(2)}s to ${(newPlayhead/1000).toFixed(2)}s`)
+            setPlayheadMs(newPlayhead, "block-move")
+          }
+        }
+      }
     }
 
     document.addEventListener("pointermove", handlePointerMove)
@@ -262,48 +302,79 @@ export default function TimelineBlock({
     if (isDraggingRef.current || isResizingRef.current || isTrimmingRef.current || !blockRef.current) return
 
     isTrimmingRef.current = side
+
+    // Pause playback when trimming starts using playhead store
+    const { isPlaying: wasPlaying, setIsPlaying } = usePlayheadStore.getState()
+    if (wasPlaying) {
+      setIsPlaying(false)
+      console.log('[TRIM] Paused playback for trimming')
+    }
+
     onTrimStart?.(block.id, side)
 
     const startX = e.clientX
-    // Get current trim values from block or default to full duration
+    const blockStartMs = block.start * 1000
+    const blockEndMs = (block.start + block.duration) * 1000
+    const blockDurationMs = block.duration * 1000
+
+    // Get current trim values from block
     let currentTrimStartMs = (block.trimStart || 0) * 1000
-    let currentTrimEndMs = (block.trimEnd || block.duration) * 1000
+    let currentTrimEndMs = (block.trimEnd || 0) * 1000
+
+    // Minimum visible duration (100ms)
+    const minimumDuration = 100
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       if (!isTrimmingRef.current || !blockRef.current) return
 
       const deltaX = moveEvent.clientX - startX
-      const timeDelta = deltaX / pixelsPerSecond * 1000 // Convert to ms
+      const timeDeltaMs = (deltaX / pixelsPerSecond) * 1000
+
+      // Calculate pointer time in timeline
+      const pointerTimeMs = blockStartMs + (moveEvent.clientX - blockRef.current.getBoundingClientRect().left) / pixelsPerSecond * 1000
 
       if (side === "left") {
-        // Trimming from the start
-        const newTrimStart = Math.max(0, Math.min(currentTrimEndMs - 100, currentTrimStartMs + timeDelta))
+        // Clamp new trimStart: 0 <= trimStart <= (duration - trimEnd - minimumDuration)
+        const maxTrimStart = blockDurationMs - currentTrimEndMs - minimumDuration
+        const newTrimStartMs = Math.max(0, Math.min(maxTrimStart, pointerTimeMs - blockStartMs))
 
-        // Update visual indicator (optional - you could show a trim preview)
-        // For now, we'll just call the callback when done
+        // Calculate active timeline time: block.start + newTrimStart
+        const activeTimeMs = blockStartMs + newTrimStartMs
+
+        // Update playhead to timeline time - preview-canvas will map to source video time
+        // For trimming preview, we set playhead to the timeline time at the trim point
+        setPlayheadMs(activeTimeMs, "scrub")
+        console.log(`[TRIM LEFT] pointerTime=${(pointerTimeMs/1000).toFixed(2)}s, trimStart=${(newTrimStartMs/1000).toFixed(2)}s, activeTime=${(activeTimeMs/1000).toFixed(2)}s`)
       } else {
-        // Trimming from the end
-        const maxTrimEnd = block.duration * 1000
-        const newTrimEnd = Math.max(currentTrimStartMs + 100, Math.min(maxTrimEnd, currentTrimEndMs + timeDelta))
+        // Clamp new trimEnd: 0 <= trimEnd <= (duration - trimStart - minimumDuration)
+        const maxTrimEnd = blockDurationMs - currentTrimStartMs - minimumDuration
+        const newTrimEndMs = Math.max(0, Math.min(maxTrimEnd, blockEndMs - pointerTimeMs))
 
-        // Update visual indicator (optional)
+        // Calculate active timeline time: block.end - newTrimEnd
+        const activeTimeMs = blockEndMs - newTrimEndMs
+
+        // Update playhead to timeline time - preview-canvas will map to source video time
+        setPlayheadMs(activeTimeMs, "scrub")
+        console.log(`[TRIM RIGHT] pointerTime=${(pointerTimeMs/1000).toFixed(2)}s, trimEnd=${(newTrimEndMs/1000).toFixed(2)}s, activeTime=${(activeTimeMs/1000).toFixed(2)}s`)
       }
     }
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (upEvent: PointerEvent) => {
       if (!isTrimmingRef.current || !blockRef.current) return
 
-      const deltaX = window.event?.clientX ? window.event.clientX - startX : 0
-      const timeDelta = deltaX / pixelsPerSecond * 1000 // Convert to ms
+      // Calculate pointer time in timeline
+      const pointerTimeMs = blockStartMs + (upEvent.clientX - blockRef.current.getBoundingClientRect().left) / pixelsPerSecond * 1000
 
       let finalTrimStart = currentTrimStartMs
       let finalTrimEnd = currentTrimEndMs
+      const minimumDuration = 100
 
       if (side === "left") {
-        finalTrimStart = Math.max(0, Math.min(currentTrimEndMs - 100, currentTrimStartMs + timeDelta))
+        const maxTrimStart = blockDurationMs - currentTrimEndMs - minimumDuration
+        finalTrimStart = Math.max(0, Math.min(maxTrimStart, pointerTimeMs - blockStartMs))
       } else {
-        const maxTrimEnd = block.duration * 1000
-        finalTrimEnd = Math.max(currentTrimStartMs + 100, Math.min(maxTrimEnd, currentTrimEndMs + timeDelta))
+        const maxTrimEnd = blockDurationMs - currentTrimStartMs - minimumDuration
+        finalTrimEnd = Math.max(0, Math.min(maxTrimEnd, blockEndMs - pointerTimeMs))
       }
 
       isTrimmingRef.current = null
@@ -311,7 +382,10 @@ export default function TimelineBlock({
       document.removeEventListener("pointermove", handlePointerMove)
       document.removeEventListener("pointerup", handlePointerUp)
 
+      console.log(`[TRIM END] side=${side}, trimStart=${(finalTrimStart/1000).toFixed(2)}s, trimEnd=${(finalTrimEnd/1000).toFixed(2)}s`)
       onTrimEnd?.(block.id, finalTrimStart, finalTrimEnd)
+
+      // Don't resume playback - user must manually play
     }
 
     document.addEventListener("pointermove", handlePointerMove)

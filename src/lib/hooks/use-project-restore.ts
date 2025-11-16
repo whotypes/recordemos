@@ -1,6 +1,7 @@
 import { useFrameOptionsStore } from "@/lib/frame-options-store"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { usePlayheadStore } from "@/lib/playhead-store"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
 import { useQuery } from "convex/react"
@@ -20,7 +21,8 @@ export const useProjectRestore = (projectId: Id<"projects"> | null) => {
     projectId && isAuthLoaded && isSignedIn ? { projectId } : "skip"
   )
 
-  const { setVideoSrc, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat, setCurrentClipAssetId, setCurrentTime } = useVideoPlayerStore()
+  const { setVideoSrc, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat, setCurrentClipAssetId } = useVideoPlayerStore()
+  const { setPlayheadMs } = usePlayheadStore()
 
   const {
     setAspectRatio,
@@ -106,7 +108,7 @@ export const useProjectRestore = (projectId: Id<"projects"> | null) => {
       setVideoFileFormat(format)
 
       setCurrentClipAssetId(primaryVideoAsset._id)
-      setCurrentTime(0) // reset playback position when switching projects
+      setPlayheadMs(0, "init") // reset playback position when switching projects
 
       hasRestoredRef.current = projectId
     } else if (primaryVideoAsset === null) {
@@ -123,7 +125,7 @@ export const useProjectRestore = (projectId: Id<"projects"> | null) => {
     setVideoFileSize,
     setVideoFileFormat,
     setCurrentClipAssetId,
-    setCurrentTime,
+    setPlayheadMs,
     setAspectRatio,
     setBackgroundColor,
     setBackgroundType,

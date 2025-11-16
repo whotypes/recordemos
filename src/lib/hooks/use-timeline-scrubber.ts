@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { usePlayheadStore } from "../playhead-store"
 
 export const useTimelineScrubber = (
   currentTime: number,
@@ -7,11 +8,11 @@ export const useTimelineScrubber = (
   isDraggingTime: boolean,
   setIsDraggingTime: (dragging: boolean) => void
 ) => {
+  const setPlayheadMs = usePlayheadStore((state) => state.setPlayheadMs)
   const scrubRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const timelineIndicatorRef = useRef<HTMLDivElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
-  const last = useRef(0)
   const isDraggingRef = useRef(false)
 
   // sync styles when not dragging
@@ -42,7 +43,8 @@ export const useTimelineScrubber = (
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const percentage = x / rect.width
-    setCurrentTime(Math.max(0, Math.min(videoDuration, percentage * videoDuration)))
+    const timeSeconds = Math.max(0, Math.min(videoDuration, percentage * videoDuration))
+    setCurrentTime(timeSeconds) // This will call studio's handler which sets playhead
   }
 
   const handleScrubberPointerDown = (e: React.PointerEvent) => {
@@ -70,6 +72,7 @@ export const useTimelineScrubber = (
       timelineIndicatorRef.current.style.left = `${percentage * 100}%`
     }
 
+    // Call setCurrentTime which will trigger studio's handler to set playhead
     setCurrentTime(newTime)
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -93,11 +96,8 @@ export const useTimelineScrubber = (
         timelineIndicatorRef.current.style.left = `${percentage * 100}%`
       }
 
-      // throttle the store update so React is not spammed
-      if (performance.now() - last.current > 16) {
-        setCurrentTime(newTime)
-        last.current = performance.now()
-      }
+      // Call setCurrentTime which will trigger studio's handler to set playhead
+      setCurrentTime(newTime)
     }
 
     const handlePointerUp = () => {
