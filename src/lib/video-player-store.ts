@@ -9,11 +9,7 @@ export const setClearFileStatusesRef = (fn: (() => void) | null) => {
 };
 
 interface VideoPlayerState {
-  // playback state
-  currentTime: number;
-  setCurrentTime: (time: number) => void;
-  isPlaying: boolean;
-  setIsPlaying: (playing: boolean) => void;
+  // video metadata
   videoDuration: number;
   setVideoDuration: (duration: number) => void;
   loop: boolean;
@@ -50,19 +46,11 @@ interface VideoPlayerState {
   setUploadStatus: (status: string | null) => void;
 
   // helper functions
-  scrubToTime: (
-    time: number,
-    videoRef: React.RefObject<HTMLVideoElement | null>
-  ) => void;
   reset: () => void;
 }
 
 export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
-  // playback state
-  currentTime: 0,
-  setCurrentTime: (time) => set({ currentTime: time }),
-  isPlaying: false,
-  setIsPlaying: (playing) => set({ isPlaying: playing }),
+  // video metadata
   videoDuration: 0,
   setVideoDuration: (duration) => set({ videoDuration: duration }),
   loop: false,
@@ -98,20 +86,11 @@ export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
   uploadStatus: null,
   setUploadStatus: (status) => set({ uploadStatus: status }),
 
-  scrubToTime: (time, videoRef) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-    }
-    set({ currentTime: time });
-  },
-
   reset: () => {
     clearFileStatusesRef?.();
     // clear local timeline when resetting
     useLocalTimelineStore.getState().clearLocalTimeline();
     set({
-      currentTime: 0,
-      isPlaying: false,
       videoDuration: 0,
       videoSrc: null,
       videoFileName: null,

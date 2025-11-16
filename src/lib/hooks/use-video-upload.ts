@@ -1,4 +1,5 @@
 import { useVideoPlayerStore } from "@/lib/video-player-store";
+import { usePlayheadStore } from "@/lib/playhead-store";
 import { useLocalTimelineStore } from "@/lib/local-timeline-store";
 import { useUploadFile } from "@convex-dev/r2/react";
 import { api } from "convex/_generated/api";
@@ -44,7 +45,6 @@ const extractVideoMetadata = (file: File): Promise<VideoMetadata> => {
 export const useVideoUpload = (projectId?: Id<"projects">) => {
   const {
     setVideoSrc,
-    setCurrentTime,
     setVideoDuration,
     setVideoFileName,
     setVideoFileSize,
@@ -55,6 +55,7 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
     cloudUploadEnabled,
   } = useVideoPlayerStore();
 
+  const { setPlayheadMs } = usePlayheadStore();
   const { initializeLocalTimeline } = useLocalTimelineStore();
 
   const uploadFile = useUploadFile(api.assets);
@@ -94,7 +95,7 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
     // create blob URL for instant playback - this always works locally
     const blobUrl = URL.createObjectURL(file);
     setVideoSrc(blobUrl);
-    setCurrentTime(0);
+    setPlayheadMs(0, "init");
     setVideoDuration(0); // will be set by metadata handler
 
     // save file metadata

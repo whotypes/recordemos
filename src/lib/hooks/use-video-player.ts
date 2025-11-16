@@ -1,17 +1,16 @@
 import { useEffect, useRef } from "react"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { usePlayheadStore } from "@/lib/playhead-store"
 
 export const useVideoPlayer = (videoSrc: string | null) => {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const {
-    currentTime,
-    setCurrentTime,
-    isPlaying,
-    setIsPlaying,
     setVideoDuration,
     loop
   } = useVideoPlayerStore()
+
+  const { isPlaying, setIsPlaying, setPlayheadMs } = usePlayheadStore()
 
   // Handle metadata to get actual video duration
   useEffect(() => {
@@ -35,37 +34,14 @@ export const useVideoPlayer = (videoSrc: string | null) => {
     }
   }, [isPlaying])
 
-  // Smooth 60fps time updates using requestAnimationFrame
-  useEffect(() => {
-    if (!videoRef.current) return
-
-    let rafId: number
-    let lastTime = 0
-
-    const tick = () => {
-      if (videoRef.current && isPlaying) {
-        const raw = videoRef.current.currentTime
-        lastTime = raw
-        setCurrentTime(lastTime)
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-
-    rafId = requestAnimationFrame(tick)
-
-    return () => {
-      cancelAnimationFrame(rafId)
-    }
-  }, [isPlaying, videoSrc, setCurrentTime])
-
   // Video event listeners (ended, play, pause only - no timeupdate)
   useEffect(() => {
     if (!videoRef.current) return
 
     const handleEnded = () => {
       if (loop && videoRef.current) {
-        videoRef.current.currentTime = 0
-        setCurrentTime(0)
+        // Set playhead to 0 - video will follow automatically via preview-canvas sync
+        setPlayheadMs(0, "playback")
         videoRef.current.play().catch(() => {})
       } else {
         setIsPlaying(false)
@@ -89,7 +65,7 @@ export const useVideoPlayer = (videoSrc: string | null) => {
       videoRef.current?.removeEventListener("play", handlePlay)
       videoRef.current?.removeEventListener("pause", handlePause)
     }
-  }, [videoSrc, setIsPlaying, loop, setCurrentTime])
+  }, [videoSrc, setIsPlaying, loop, setPlayheadMs])
 
   return {
     videoRef

@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { usePlayheadStore } from "./playhead-store"
 import { TimelineCompiler } from "./timeline-compiler"
 import type { ConvexTimelineBlock } from "./types/timeline"
 
@@ -6,14 +7,14 @@ interface CompositionState {
   // Timeline compiler instance
   compiler: TimelineCompiler | null
 
-  // Current playback time in ms
-  currentTimeMs: number
-
-  // Active video block state
+  // Active video block state (derived from playhead)
   activeVideoBlock: {
     blockId: string
     assetId: string
     inAssetTime: number // Time offset within the video asset
+    visibleStart: number // Visible window start in timeline (ms)
+    visibleEnd: number // Visible window end in timeline (ms)
+    visibleDuration: number // Visible duration (ms)
     transforms: {
       scale: number
       x: number
@@ -32,13 +33,12 @@ interface CompositionState {
   // Methods
   initCompiler: (blocks: ConvexTimelineBlock[]) => void
   updateBlocks: (blocks: ConvexTimelineBlock[]) => void
-  setCurrentTime: (timeMs: number) => void
+  computeActiveBlock: (timeMs: number) => void
   getVideoTimeOffset: () => number
 }
 
 export const useCompositionStore = create<CompositionState>((set, get) => ({
   compiler: null,
-  currentTimeMs: 0,
   activeVideoBlock: null,
 
   initCompiler: (blocks) => {
@@ -50,38 +50,39 @@ export const useCompositionStore = create<CompositionState>((set, get) => ({
     const { compiler } = get()
     if (compiler) {
       compiler.updateBlocks(blocks)
-      // Recompute state at current time
-      const { currentTimeMs } = get()
-      get().setCurrentTime(currentTimeMs)
+      // Recompute active block with current playhead position to avoid stale data
+      const playheadMs = usePlayheadStore.getState().playheadMs
+      get().computeActiveBlock(playheadMs)
     } else {
       // Initialize if not exists
       get().initCompiler(blocks)
     }
   },
 
-  setCurrentTime: (timeMs) => {
+  computeActiveBlock: (timeMs) => {
     const { compiler } = get()
     if (!compiler) {
-      set({ currentTimeMs: timeMs, activeVideoBlock: null })
+      set({ activeVideoBlock: null })
       return
     }
 
     const activeVideo = compiler.getActiveVideoBlock(timeMs)
 
-    if (activeVideo) {
+    if (activeVideo && activeVideo.block.assetId) {
       set({
-        currentTimeMs: timeMs,
         activeVideoBlock: {
           blockId: activeVideo.block._id,
-          assetId: activeVideo.block.assetId!,
+          assetId: activeVideo.block.assetId,
           inAssetTime: activeVideo.inAssetTime,
+          visibleStart: activeVideo.visibleStart,
+          visibleEnd: activeVideo.visibleEnd,
+          visibleDuration: activeVideo.visibleDuration,
           transforms: activeVideo.transforms,
           cropRect: activeVideo.cropRect,
         }
       })
     } else {
       set({
-        currentTimeMs: timeMs,
         activeVideoBlock: null
       })
     }

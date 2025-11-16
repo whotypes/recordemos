@@ -256,6 +256,7 @@ const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 import { useSignIn } from '@clerk/tanstack-react-start';
+import { Link } from '@tanstack/react-router';
 
 const modalSteps = [
 
@@ -610,6 +611,27 @@ export const SignInComponent = ({ logo = <DefaultLogo />, brandName = "RecordDem
                                         </div></div>
 
                                     </div>
+
+                                    {authStep === 'email' && (
+                                        <>
+                                            <BlurFade delay={authStep === 'email' ? 0.25 * 6 : 0} inView={true} className="w-full mt-10">
+                                                <div className="flex items-center w-full gap-2 py-2">
+                                                    <hr className="w-full border-border" />
+                                                    <span className="text-xs font-semibold text-muted-foreground">OR</span>
+                                                    <hr className="w-full border-border" />
+                                                </div>
+                                            </BlurFade>
+                                            <BlurFade delay={authStep === 'email' ? 0.25 * 7 : 0} inView={true} className="w-full mt-2 flex justify-center">
+                                                <Link
+                                                    search={{ projectId: "" }}
+                                                    to='/studio'
+                                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline text-center"
+                                                >
+                                                    Don't want to create an account?
+                                                </Link>
+                                            </BlurFade>
+                                        </>
+                                    )}
 
                                 </BlurFade>
 

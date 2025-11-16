@@ -14,6 +14,7 @@ import { useCompositionStore } from "@/lib/composition-store"
 import { DEFAULT_UNSPLASH_PHOTO_URLS } from "@/lib/constants"
 import { useFrameOptionsStore } from "@/lib/frame-options-store"
 import { useLocalTimelineStore } from "@/lib/local-timeline-store"
+import { usePlayheadStore } from "@/lib/playhead-store"
 import { cn } from "@/lib/utils"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { setClearFileStatusesRef, useVideoPlayerStore } from "@/lib/video-player-store"
@@ -59,7 +60,6 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
   } = useVideoOptionsStore()
   const {
     setVideoSrc,
-    setCurrentTime,
     setVideoDuration,
     setVideoFileName,
     setVideoFileSize,
@@ -70,6 +70,7 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
     uploadStatus,
     cloudUploadEnabled,
   } = useVideoPlayerStore()
+  const { setPlayheadMs } = usePlayheadStore()
   const { selectedFrame, frameRoundness, arcDarkMode, frameHeight } = useFrameOptionsStore()
   const { activeVideoBlock } = useCompositionStore()
   const { initializeLocalTimeline } = useLocalTimelineStore()
@@ -130,7 +131,7 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
 
       const url = URL.createObjectURL(file)
       setVideoSrc(url)
-      setCurrentTime(0)
+      setPlayheadMs(0, "init")
       setVideoDuration(0)
 
       // Save file metadata
@@ -155,7 +156,7 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
         status: "success",
         result: url,
       }
-    }, [setVideoSrc, setCurrentTime, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat, cloudUploadEnabled, initializeLocalTimeline]),
+    }, [setVideoSrc, setPlayheadMs, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat, cloudUploadEnabled, initializeLocalTimeline]),
     validation: {
       accept: {
         "video/*": [".mp4", ".webm", ".mov", ".avi", ".mkv"],
@@ -167,18 +168,34 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
 
   setClearFileStatusesRef(dropzone.clearFileStatuses)
 
-  // Apply timeline-based time offset for instant trim preview
-  useEffect(() => {
-    if (!videoRef.current || !activeVideoBlock) return
+  const playheadMs = usePlayheadStore((state) => state.playheadMs)
 
-    const targetTime = activeVideoBlock.inAssetTime / 1000
+  // Make video element follow playhead (passive follower)
+  // Maps playhead time to source video time using active block
+  useEffect(() => {
+    if (!videoRef.current) return
+
     const video = videoRef.current
 
-    // Only seek if video is ready and difference is significant (>50ms)
+    // Only seek if video is ready
     if (video.readyState < 2) return // Wait for HAVE_CURRENT_DATA or better
+
+    // Calculate target video time based on playhead and active block
+    let targetTime = playheadMs / 1000
+
+    if (activeVideoBlock) {
+      // Map timeline time to source video time
+      targetTime = activeVideoBlock.inAssetTime / 1000
+    }
+
+    // Clamp to video duration to prevent seeking past end
+    if (video.duration && !isNaN(video.duration)) {
+      targetTime = Math.min(targetTime, video.duration)
+    }
 
     const timeDiff = Math.abs(video.currentTime - targetTime)
 
+    // Only seek if difference is significant (>50ms) to avoid jitter
     if (timeDiff > 0.05) {
       try {
         // Use fastSeek if available (faster, less accurate)
@@ -187,11 +204,12 @@ export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps
         } else {
           video.currentTime = targetTime
         }
+        console.log(`[VIDEO] Synced to ${targetTime.toFixed(3)}s (playhead=${(playheadMs / 1000).toFixed(3)}s)`)
       } catch (e) {
-    // Silently ignore seek errors (video not ready, invalid time, etc)
+        // Silently ignore seek errors (video not ready, invalid time, etc)
       }
     }
-  }, [activeVideoBlock, videoRef])
+  }, [playheadMs, activeVideoBlock])
 
   // Apply transforms from the active video block (memoized to prevent recalculation)
   const videoTransforms = useMemo(() => {

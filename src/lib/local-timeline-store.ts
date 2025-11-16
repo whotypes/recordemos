@@ -47,7 +47,7 @@ export const useLocalTimelineStore = create<LocalTimelineState>((set, get) => ({
       startMs: 0,
       durationMs: videoDuration * 1000,
       trimStartMs: 0,
-      trimEndMs: videoDuration * 1000,
+      trimEndMs: 0,
       zIndex: 0,
       transforms: {
         scale: 1,

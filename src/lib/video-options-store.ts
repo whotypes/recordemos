@@ -53,21 +53,7 @@ interface VideoOptionsState {
   hideToolbars: boolean
   setHideToolbars: (hide: boolean) => void
 
-  // Video player state
-  currentTime: number
-  setCurrentTime: (time: number) => void
-
-  isPlaying: boolean
-  setIsPlaying: (playing: boolean) => void
-
-  videoDuration: number
-  setVideoDuration: (duration: number) => void
-
-  videoSrc: string | null
-  setVideoSrc: (src: string | null) => void
-
   // Helper functions
-  scrubToTime: (time: number, videoRef: React.RefObject<HTMLVideoElement | null>) => void
   reset: () => void
 
   // Reset transforms to defaults
@@ -180,33 +166,8 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
   hideToolbars: false,
   setHideToolbars: (hide) => set({ hideToolbars: hide }),
 
-  // Video player state - defaults from video player store
-  currentTime: 0,
-  setCurrentTime: (time) => set({ currentTime: time }),
-
-  isPlaying: false,
-  setIsPlaying: (playing) => set({ isPlaying: playing }),
-
-  videoDuration: 0,
-  setVideoDuration: (duration) => set({ videoDuration: duration }),
-
-  videoSrc: null,
-  setVideoSrc: (src) => set({ videoSrc: src }),
-
   // Helper functions
-  scrubToTime: (time, videoRef) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time
-    }
-    set({ currentTime: time })
-  },
-
-  reset: () => set({
-    currentTime: 0,
-    isPlaying: false,
-    videoDuration: 0,
-    videoSrc: null
-  }),
+    reset: () => set({}),
 
   resetTransforms: () => set({
     scale: 1,
