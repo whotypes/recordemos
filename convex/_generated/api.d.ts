@@ -9,9 +9,11 @@
  */
 
 import type * as assets from "../assets.js";
+import type * as auth_helpers from "../auth_helpers.js";
 import type * as autumn from "../autumn.js";
 import type * as http from "../http.js";
-import type * as productids from "../productids.js";
+import type * as notifications from "../notifications.js";
+import type * as presence from "../presence.js";
 import type * as project_settings from "../project_settings.js";
 import type * as projects from "../projects.js";
 import type * as r2 from "../r2.js";
@@ -20,7 +22,6 @@ import type * as timeline_edits from "../timeline_edits.js";
 import type * as timeline_helpers from "../timeline_helpers.js";
 import type * as timeline_tracks from "../timeline_tracks.js";
 import type * as users from "../users.js";
-import type * as v1_tasks from "../v1/tasks.js";
 
 import type {
   ApiFromModules,
@@ -30,9 +31,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   assets: typeof assets;
+  auth_helpers: typeof auth_helpers;
   autumn: typeof autumn;
   http: typeof http;
-  productids: typeof productids;
+  notifications: typeof notifications;
+  presence: typeof presence;
   project_settings: typeof project_settings;
   projects: typeof projects;
   r2: typeof r2;
@@ -41,7 +44,6 @@ declare const fullApi: ApiFromModules<{
   timeline_helpers: typeof timeline_helpers;
   timeline_tracks: typeof timeline_tracks;
   users: typeof users;
-  "v1/tasks": typeof v1_tasks;
 }>;
 
 /**

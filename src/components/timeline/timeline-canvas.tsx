@@ -15,6 +15,8 @@ interface TimelineCanvasProps {
   onBlockResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
   onBlockDelete: (blockId: string) => void
   onBlockDuplicate: (blockId: string) => void
+  onBlockTrimStart?: (blockId: string, side: "left" | "right") => void
+  onBlockTrimEnd?: (blockId: string, trimStartMs: number, trimEndMs: number) => void
   timelineIndicatorRef: React.RefObject<HTMLDivElement | null>
 }
 
@@ -31,6 +33,8 @@ export default function TimelineCanvas({
   onBlockResizeEnd,
   onBlockDelete,
   onBlockDuplicate,
+  onBlockTrimStart,
+  onBlockTrimEnd,
   timelineIndicatorRef,
 }: TimelineCanvasProps) {
   const playheadRef = useRef<HTMLDivElement>(null)
@@ -153,6 +157,8 @@ export default function TimelineCanvas({
                 onResizeEnd={onBlockResizeEnd}
                 onDelete={onBlockDelete}
                 onDuplicate={onBlockDuplicate}
+                onTrimStart={onBlockTrimStart}
+                onTrimEnd={onBlockTrimEnd}
                 totalDuration={videoDuration}
                 pixelsPerSecond={pixelsPerSecond}
                 blocksOnSameTrack={blocksOnSameTrack}
@@ -178,6 +184,8 @@ export default function TimelineCanvas({
                 onResizeEnd={onBlockResizeEnd}
                 onDelete={onBlockDelete}
                 onDuplicate={onBlockDuplicate}
+                onTrimStart={onBlockTrimStart}
+                onTrimEnd={onBlockTrimEnd}
                 totalDuration={videoDuration}
                 pixelsPerSecond={pixelsPerSecond}
                 blocksOnSameTrack={blocksOnSameTrack}

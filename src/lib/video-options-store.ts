@@ -1,3 +1,5 @@
+import { DEFAULT_UNSPLASH_PHOTO_URLS } from "@/lib/constants"
+import { gradients } from "@/presets/gradients"
 import { create } from "zustand"
 
 interface VideoOptionsState {
@@ -30,6 +32,12 @@ interface VideoOptionsState {
   setBackgroundType: (type: 'solid' | 'gradient' | 'mesh' | 'image') => void
   gradientAngle: number
   setGradientAngle: (angle: number) => void
+  imageBackground: string | null
+  setImageBackground: (url: string | null) => void
+  highResBackground: boolean
+  setHighResBackground: (highRes: boolean) => void
+  attribution: { name: string; link: string } | null
+  setAttribution: (attribution: { name: string; link: string } | null) => void
 
   // UI state
   activeTabIndex: number
@@ -66,10 +74,32 @@ interface VideoOptionsState {
   resetTransforms: () => void
 }
 
-export const useVideoOptionsStore = create<VideoOptionsState>((set, get) => {
+export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
+  // detect theme and set appropriate default background
+  const getDefaultBackground = () => {
+    if (typeof window === 'undefined') return "#1a1a1a"
+
+    const isDark = document.documentElement.classList.contains('dark')
+    // light mode: use a light gradient, dark mode: use dark color
+    return isDark ? gradients[41].gradient : gradients[1].gradient
+  }
+
   // Initialize gradient angle CSS variable
   if (typeof window !== 'undefined') {
     document?.documentElement.style.setProperty('--gradient-angle', '170deg')
+  }
+
+  // Load saved tab index from localStorage
+  const getSavedTabIndex = () => {
+    if (typeof window === 'undefined') return 0
+    const saved = localStorage.getItem('video-options-active-tab-index')
+    if (saved !== null) {
+      const index = parseInt(saved, 10)
+      if (!isNaN(index) && index >= 0) {
+        return index
+      }
+    }
+    return 0
   }
 
   return {
@@ -96,13 +126,18 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set, get) => {
   setPerspective: (perspective) => set({ perspective }),
 
   // UI state
-  activeTabIndex: 0,
-  setActiveTabIndex: (index) => set({ activeTabIndex: index }),
+    activeTabIndex: getSavedTabIndex(),
+    setActiveTabIndex: (index) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('video-options-active-tab-index', index.toString())
+      }
+      set({ activeTabIndex: index })
+    },
 
-  // Background - default from editor store
-  backgroundColor: "#1a1a1a",
+    // Background - theme-aware default
+    backgroundColor: getDefaultBackground(),
   setBackgroundColor: (color) => set({ backgroundColor: color }),
-  backgroundType: 'gradient',
+    backgroundType: 'image',
   setBackgroundType: (type) => set({ backgroundType: type }),
   gradientAngle: 170,
   setGradientAngle: (angle) => {
@@ -111,6 +146,12 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set, get) => {
     }
     set({ gradientAngle: angle })
   },
+    imageBackground: DEFAULT_UNSPLASH_PHOTO_URLS.regular,
+    setImageBackground: (url) => set({ imageBackground: url }),
+    highResBackground: false,
+    setHighResBackground: (highRes) => set({ highResBackground: highRes }),
+    attribution: null,
+    setAttribution: (attribution) => set({ attribution }),
 
   // Canvas settings - defaults from editor store
   zoomLevel: 100,

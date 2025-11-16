@@ -1,15 +1,27 @@
 import { InlineEdit } from "@/components/ui/inline-edit"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog"
 import { useScreenRecorder } from "@/lib/hooks/use-screen-recorder"
 import { useVideoUpload } from "@/lib/hooks/use-video-upload"
 import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
 import type { Id } from "convex/_generated/dataModel"
-import { Plus, RotateCcw, Upload, Video as VideoIcon } from "lucide-react"
-import { useRef } from "react"
+import { Plus, RotateCcw, Upload, Video as VideoIcon, Trash2, Loader2 } from "lucide-react"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
+import { useMutation } from "convex/react"
+import { api } from "convex/_generated/api"
 
 interface VideoPanelProps {
   projectId?: string
@@ -24,6 +36,7 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
   const videoFileSize = useVideoPlayerStore((state) => state.videoFileSize)
   const videoFileFormat = useVideoPlayerStore((state) => state.videoFileFormat)
   const cloudUploadEnabled = useVideoPlayerStore((state) => state.cloudUploadEnabled)
+  const currentClipAssetId = useVideoPlayerStore((state) => state.currentClipAssetId)
   const setVideoFileName = useVideoPlayerStore((state) => state.setVideoFileName)
   const setVideoFileFormat = useVideoPlayerStore((state) => state.setVideoFileFormat)
   const setCurrentClipAssetId = useVideoPlayerStore((state) => state.setCurrentClipAssetId)
@@ -33,8 +46,13 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
   const setBackgroundColor = useVideoOptionsStore((state) => state.setBackgroundColor)
   const setBackgroundType = useVideoOptionsStore((state) => state.setBackgroundType)
   const setGradientAngle = useVideoOptionsStore((state) => state.setGradientAngle)
-  const setBlocks = useTimelineBlocksStore((state) => state.setBlocks)
+  // Removed setBlocks - timeline blocks are managed by Convex
   const uploadRef = useRef<HTMLInputElement>(null)
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const deleteAsset = useMutation(api.assets.deleteAsset)
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -125,7 +143,43 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
     setBackgroundColor("#1a1a1a")
     setBackgroundType("gradient")
     setGradientAngle(170)
-    setBlocks([])
+    // Timeline blocks cleared automatically when video deleted
+  }
+
+  const handleDeleteVideo = async () => {
+    if (!currentClipAssetId) {
+      toast.error("No video to delete")
+      return
+    }
+
+    try {
+      setIsDeleting(true)
+
+      await deleteAsset({ assetId: currentClipAssetId })
+
+      // clean up local state
+      const currentSrc = useVideoPlayerStore.getState().videoSrc
+      if (currentSrc && currentSrc.startsWith("blob:")) {
+        URL.revokeObjectURL(currentSrc)
+      }
+
+      clearRecordedVideo()
+      resetVideoPlayer()
+      resetVideoOptions()
+      resetTransforms()
+      setBackgroundColor("#1a1a1a")
+      setBackgroundType("gradient")
+      setGradientAngle(170)
+      // Timeline blocks cleared automatically when video deleted
+
+      toast.success("Video deleted successfully")
+      setShowDeleteDialog(false)
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete video")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -280,6 +334,27 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+
+            {currentClipAssetId && projectId && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="relative flex gap-2 h-full w-full cursor-pointer items-center justify-center rounded-xl border-2 border-destructive/30 p-1 hover:border-destructive/60"
+                      onClick={() => setShowDeleteDialog(true)}
+                    >
+                      <div className='flex gap-1 items-center justify-center'>
+                        <Trash2 className="cursor-pointer text-destructive/50 focus:ring-1 group-hover:text-destructive/80" size={16} />
+                        <p className='text-muted-foreground'>Delete</p>
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side={"top"}>
+                    <span>Permanently delete video from project</span>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </>
         )}
       </div>
@@ -330,6 +405,41 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
           </div>
         </div>
       )}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Video</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                Are you sure you want to permanently delete this video? This action cannot be undone and will remove:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>The video file from cloud storage</li>
+                  <li>All timeline blocks and edits</li>
+                  <li>All project data associated with this video</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVideo}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

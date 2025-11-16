@@ -11,8 +11,17 @@ export default function ZoomAspectPanel() {
   const isDisabled = !videoSrc
 
   return (
-    <div className={`w-full space-y-6 ${isDisabled ? 'pointer-events-none opacity-40' : ''}`}>
-      <div className="w-full">
+    <div className="w-full space-y-6">
+      {isDisabled && (
+        <div className="mb-4 p-3 bg-muted/50 border border-border rounded-md">
+          <p className="text-xs text-muted-foreground">
+            Upload or record a video to adjust zoom and aspect ratio
+          </p>
+        </div>
+      )}
+
+      <div className={isDisabled ? 'pointer-events-none opacity-40' : ''}>
+        <div className="w-full">
         <h3 className="mb-3 text-xs font-medium uppercase text-dark/70">Zoom & Pan</h3>
         <div className="flex justify-center gap-2 mb-3">
           <button
@@ -48,6 +57,7 @@ export default function ZoomAspectPanel() {
             </button>
           ))}
         </div>
+      </div>
       </div>
     </div>
   )

@@ -95,8 +95,17 @@ export default function BrowserAppearance() {
   }
 
   return (
-    <div className={`w-full ${isDisabled ? 'pointer-events-none opacity-40' : ''}`}>
-      <div className="mb-3 flex items-center px-1">
+    <div className="w-full">
+      {isDisabled && (
+        <div className="mb-4 p-3 bg-muted/50 border border-border rounded-md">
+          <p className="text-xs text-muted-foreground">
+            Upload or record a video to customize browser frame
+          </p>
+        </div>
+      )}
+
+      <div className={isDisabled ? 'pointer-events-none opacity-40' : ''}>
+        <div className="mb-3 flex items-center px-1">
         <h1 className="text-[0.85rem]">Browser Frames</h1>
       </div>
 
@@ -296,6 +305,7 @@ export default function BrowserAppearance() {
               <span className="text-xs text-muted-foreground w-8">{frameRoundness.toFixed(1)}</span>
             </div>
           </div>
+      </div>
       </div>
     </div>
   )

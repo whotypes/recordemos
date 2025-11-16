@@ -5,16 +5,19 @@ import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
 import { useQuery } from "convex/react"
 import { useEffect, useRef } from "react"
+import { useAuth } from "@clerk/tanstack-react-start"
 
 export const useProjectRestore = (projectId: Id<"projects"> | null) => {
+  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth()
+
   const primaryVideoAsset = useQuery(
     api.assets.getPrimaryVideoAsset,
-    projectId ? { projectId } : "skip"
+    projectId && isAuthLoaded && isSignedIn ? { projectId } : "skip"
   )
 
   const projectSettings = useQuery(
     api.project_settings.get,
-    projectId ? { projectId } : "skip"
+    projectId && isAuthLoaded && isSignedIn ? { projectId } : "skip"
   )
 
   const { setVideoSrc, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat, setCurrentClipAssetId, setCurrentTime } = useVideoPlayerStore()

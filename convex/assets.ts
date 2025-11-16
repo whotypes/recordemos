@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { r2 } from "./r2";
 import { getCurrentUser, getCurrentUserOrThrow } from "./users";
+import { hasProjectAccess } from "./auth_helpers";
 
 // R2 client API setup
 export const { generateUploadUrl, syncMetadata } = r2.clientApi({
@@ -36,7 +37,8 @@ export const verifyProjectAccess = query({
             return { valid: false, error: "Project not found" };
         }
 
-        if (project.ownerId !== user._id) {
+        const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId);
+        if (!hasAccess) {
             return { valid: false, error: "Not authorized to access this project" };
         }
 
@@ -60,12 +62,14 @@ export const insertAssetRow = mutation({
             throw new Error("Not authenticated");
         }
 
-        // verify user owns the project
+        // verify user has access to the project
         const project = await ctx.db.get(args.projectId);
         if (!project) {
             throw new Error("Project not found");
         }
-        if (project.ownerId !== user._id) {
+
+        const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId);
+        if (!hasAccess) {
             throw new Error("Not authorized to add assets to this project");
         }
 
@@ -95,12 +99,14 @@ export const listByProject = query({
             throw new Error("Not authenticated");
         }
 
-        // verify user owns the project
+        // verify user has access to the project
         const project = await ctx.db.get(args.projectId);
         if (!project) {
             throw new Error("Project not found");
         }
-        if (project.ownerId !== user._id) {
+
+        const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId);
+        if (!hasAccess) {
             throw new Error("Not authorized to view this project's assets");
         }
 
@@ -129,7 +135,9 @@ export const getAsset = query({
             throw new Error("Asset not found");
         }
 
-        if (asset.ownerId !== user._id) {
+        // check if user has access to the project that owns this asset
+        const hasAccess = await hasProjectAccess(ctx, user._id, asset.projectId);
+        if (!hasAccess) {
             throw new Error("Not authorized to view this asset");
         }
 
@@ -148,7 +156,7 @@ export const getVideoUrl = query({
             throw new Error("Not authenticated");
         }
 
-        // verify user owns an asset with this key
+        // verify user has access to an asset with this key
         const asset = await ctx.db
             .query("assets")
             .filter((q) => q.eq(q.field("objectKey"), args.objectKey))
@@ -158,7 +166,9 @@ export const getVideoUrl = query({
             throw new Error("Asset not found");
         }
 
-        if (asset.ownerId !== user._id) {
+        // check if user has access to the project that owns this asset
+        const hasAccess = await hasProjectAccess(ctx, user._id, asset.projectId);
+        if (!hasAccess) {
             throw new Error("Not authorized to access this asset");
         }
 
@@ -181,12 +191,14 @@ export const getPrimaryVideoAsset = query({
             throw new Error("Not authenticated");
         }
 
-        // verify user owns the project
+        // verify user has access to the project
         const project = await ctx.db.get(args.projectId);
         if (!project) {
             throw new Error("Project not found");
         }
-        if (project.ownerId !== user._id) {
+
+        const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId);
+        if (!hasAccess) {
             throw new Error("Not authorized to view this project's assets");
         }
 
@@ -214,7 +226,7 @@ export const getPrimaryVideoAsset = query({
     },
 });
 
-// delete asset with safety check
+// delete asset and all related records
 export const deleteAsset = mutation({
     args: {
         assetId: v.id("assets"),
@@ -230,19 +242,33 @@ export const deleteAsset = mutation({
             throw new Error("Asset not found");
         }
 
-        if (asset.ownerId !== user._id) {
+        // check if user has access to the project that owns this asset
+        const hasAccess = await hasProjectAccess(ctx, user._id, asset.projectId);
+        if (!hasAccess) {
             throw new Error("Not authorized to delete this asset");
         }
 
-        // TODO: when timeline tables are created, add check here
-        // to prevent deletion of assets referenced by timeline blocks
-        // const timelineBlocks = await ctx.db
-        //   .query("timelineBlocks")
-        //   .withIndex("byAsset", (q) => q.eq("assetId", args.assetId))
-        //   .first();
-        // if (timelineBlocks) {
-        //   throw new Error("Cannot delete asset that is referenced in timeline");
-        // }
+        // delete all timeline blocks that reference this asset
+        const timelineBlocks = await ctx.db
+            .query("timeline_blocks")
+            .withIndex("byProject", (q) => q.eq("projectId", asset.projectId))
+            .collect();
+
+        for (const block of timelineBlocks) {
+            if (block.assetId === args.assetId) {
+                await ctx.db.delete(block._id);
+            }
+        }
+
+        // delete timeline edits for this project (since the video is being removed)
+        const timelineEdits = await ctx.db
+            .query("timeline_edits")
+            .withIndex("byProject", (q) => q.eq("projectId", asset.projectId))
+            .collect();
+
+        for (const edit of timelineEdits) {
+            await ctx.db.delete(edit._id);
+        }
 
         // delete from R2
         await r2.deleteObject(ctx, asset.objectKey);

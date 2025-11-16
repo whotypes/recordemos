@@ -1,9 +1,21 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
+import { hasProjectAccess } from "./auth_helpers"
+import { getCurrentUser } from "./users"
 
 export const get = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to view this project")
+    }
+
     const settings = await ctx.db
       .query("project_settings")
       .withIndex("byProject", (q) => q.eq("projectId", args.projectId))
@@ -18,6 +30,16 @@ export const initialize = mutation({
     projectId: v.id("projects"),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     const existing = await ctx.db
       .query("project_settings")
       .withIndex("byProject", (q) => q.eq("projectId", args.projectId))
@@ -94,6 +116,16 @@ export const update = mutation({
     searchBarText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     const settings = await ctx.db
       .query("project_settings")
       .withIndex("byProject", (q) => q.eq("projectId", args.projectId))

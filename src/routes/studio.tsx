@@ -1,14 +1,16 @@
-import EditingPanel from "@/components/editing-panel"
+import EditingPanel from "@/components/editing-panel/index"
 import ExportModule from "@/components/export-module"
-import PremiumUpsellModal from "@/components/premium-upsell-modal"
 import PreviewCanvas from "@/components/preview-canvas"
 import TimelineEditor from "@/components/timeline-editor"
 import StudioNavbar from "@/components/ui/studio-navbar"
 import { useProjectRestore } from "@/lib/hooks/use-project-restore"
 import { useProjectSettingsSync } from "@/lib/hooks/use-project-settings-sync"
 import { useVideoPlayer } from "@/lib/hooks/use-video-player"
+import { usePresence } from "@/lib/hooks/use-presence"
+import { usePresenceSync } from "@/lib/hooks/use-presence-sync"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { useCompositionStore } from "@/lib/composition-store"
 import { useAuth } from "@clerk/tanstack-react-start"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
@@ -48,6 +50,11 @@ function Studio() {
         enabled: isAuthLoaded && isSignedIn,
     });
 
+    const { data: currentUser } = useQuery({
+        ...convexQuery(api.users.current, {}),
+        enabled: isAuthLoaded && isSignedIn,
+    })
+
     // restore project state from database and R2
     useProjectRestore(projectId as Id<"projects"> | null)
 
@@ -83,6 +90,33 @@ function Studio() {
     } = useVideoPlayerStore()
 
     const { videoRef } = useVideoPlayer(videoSrc)
+    const { setCurrentTime: setCompositionTime } = useCompositionStore()
+
+    // broadcast presence to other users
+    usePresence({
+        projectId: projectId as Id<"projects"> | null,
+        userId: currentUser?._id || null,
+        username: currentUser?.username || "",
+        userImage: currentUser?.image || "",
+        currentTimeMs: currentTime * 1000,
+        isPlaying,
+        enabled: !!projectId && !!currentUser,
+    })
+
+    // sync playback with other users
+    usePresenceSync({
+        currentUserId: currentUser?._id || null,
+        videoRef,
+        setCurrentTime,
+        setIsPlaying,
+        enabled: !!currentUser,
+    })
+
+    // Update composition store when scrubbing
+    useEffect(() => {
+        // Sync timeline time to composition time in ms
+        setCompositionTime(currentTime * 1000)
+    }, [currentTime, setCompositionTime])
 
     const aspectRatio = useVideoOptionsStore((state) => state.aspectRatio)
     const hideToolbars = useVideoOptionsStore((state) => state.hideToolbars)
@@ -98,7 +132,7 @@ function Studio() {
 
     return (
         <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
-            <StudioNavbar activeProjectId={projectId} />
+            <StudioNavbar activeProjectId={projectId} currentUserId={currentUser?._id} />
 
             <div className="flex flex-1 overflow-hidden gap-0">
                 <div className="flex-1 max-w-96 min-w-xs border-r border-border bg-card sidebar-scrollbar">
@@ -106,12 +140,13 @@ function Studio() {
                 </div>
 
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-auto bg-background flex items-center justify-center p-6">
+                    <div className="flex-1 overflow-auto bg-background flex items-center justify-center p-6 relative">
                         <PreviewCanvas
                             hideToolbars={hideToolbars}
                             currentTime={currentTime}
                             videoRef={videoRef}
                             videoSrc={videoSrc}
+                            isPlaying={isPlaying}
                         />
                     </div>
 
@@ -119,7 +154,10 @@ function Studio() {
                         <TimelineEditor
                             projectId={projectId as Id<"projects"> | null}
                             currentTime={currentTime}
-                            setCurrentTime={(time) => scrubToTime(time, videoRef)}
+                            setCurrentTime={(time) => {
+                                scrubToTime(time, videoRef)
+                                setCompositionTime(time * 1000)
+                            }}
                             isPlaying={isPlaying}
                             setIsPlaying={setIsPlaying}
                             selectedBlock={selectedBlock}
@@ -132,8 +170,6 @@ function Studio() {
             </div>
 
             {showExport && <ExportModule aspectRatio={aspectRatio} onClose={() => setShowExport(false)} />}
-
-            <PremiumUpsellModal />
         </div>
     )
 }

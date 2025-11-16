@@ -29,9 +29,14 @@ export const createInternal = internalMutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
+    // Generate a unique shareable slug
+    const slug = `${args.name.toLowerCase().replace(/\s+/g, '-')}-${Math.random().toString(36).substr(2, 9)}`;
+
     const projectId = await ctx.db.insert("projects", {
       ownerId: args.ownerId,
       name: args.name,
+      visibility: "private", // default to private
+      shareableSlug: slug,
       createdAt: args.createdAt,
       updatedAt: args.updatedAt,
     });
@@ -93,12 +98,37 @@ export const listForCurrentUser = query({
       return [];
     }
 
-    const projects = await ctx.db
+    // get projects owned by user
+    const ownedProjects = await ctx.db
       .query("projects")
       .withIndex("byOwnerId", q => q.eq("ownerId", user._id))
       .collect();
 
-    return projects
+    // get projects user has accepted invites for
+    const acceptedInvites = await ctx.db
+      .query("notifications")
+      .withIndex("byToUserAndStatus", (q) =>
+        q.eq("toUserId", user._id).eq("status", "accepted")
+      )
+      .collect();
+
+    // get the projects from accepted invites
+    const invitedProjects = await Promise.all(
+      acceptedInvites.map((invite) => ctx.db.get(invite.projectId))
+    );
+
+    // combine and deduplicate projects
+    const allProjectIds = new Set<Id<"projects">>();
+    const allProjects = [];
+
+    for (const project of [...ownedProjects, ...invitedProjects.filter((p) => p !== null)]) {
+      if (project && !allProjectIds.has(project._id)) {
+        allProjectIds.add(project._id);
+        allProjects.push(project);
+      }
+    }
+
+    return allProjects
       .map((project) => ({
         _id: project._id,
         name: project.name,
@@ -124,10 +154,40 @@ export const deleteProject = mutation({
       throw new Error("Project not found");
     }
 
+    // only project owners can delete projects, not collaborators
     if (project.ownerId !== user._id) {
-      throw new Error("Not authorized to delete this project");
+      throw new Error("Only project owners can delete projects");
     }
 
     await ctx.db.delete(args.projectId);
+  }
+});
+
+// Update project visibility
+export const updateVisibility = mutation({
+  args: {
+    projectId: v.id("projects"),
+    visibility: v.union(v.literal("private"), v.literal("public"))
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    // Only project owner can change visibility
+    if (project.ownerId !== user._id) {
+      throw new Error("Only project owner can change visibility");
+    }
+
+    await ctx.db.patch(args.projectId, {
+      visibility: args.visibility,
+      updatedAt: Date.now()
+    });
   }
 });

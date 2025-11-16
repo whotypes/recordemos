@@ -157,9 +157,18 @@ export default function VideoControls() {
   const isDisabled = !videoSrc
 
   return (
-    <div className={`w-full ${isDisabled ? 'pointer-events-none opacity-40' : ''}`}>
-      {/* Playback Options */}
-      <div className="mb-8">
+    <div className="w-full">
+      {isDisabled && (
+        <div className="mb-4 p-3 bg-muted/50 border border-border rounded-md">
+          <p className="text-xs text-muted-foreground">
+            Upload or record a video to enable motion controls
+          </p>
+        </div>
+      )}
+
+      <div className={isDisabled ? 'pointer-events-none opacity-40' : ''}>
+        {/* Playback Options */}
+        <div className="mb-8">
         <h3 className="mb-4 text-xs font-medium uppercase text-dark/70">Playback</h3>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
@@ -454,6 +463,7 @@ export default function VideoControls() {
             setRotateZ(Number(rotateZ) - 1)
           }}
         />
+      </div>
       </div>
     </div>
   )
