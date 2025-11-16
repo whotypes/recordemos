@@ -7,6 +7,16 @@ import React from 'react'
 import NotificationsToggle from "@/components/notifications-toggle"
 import TeamPresence from "@/components/team-presence"
 import { ThemeToggle } from "@/components/theme-toggle"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
@@ -35,7 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
-import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-start"
+import { SignedIn, SignedOut, useAuth, useClerk, useUser } from "@clerk/tanstack-react-start"
 import { Link as RouterLink, useLocation } from "@tanstack/react-router"
 import { useCustomer } from "autumn-js/react"
 import {
@@ -44,8 +54,10 @@ import {
   CreditCard,
   LogOut,
   Settings,
+  Trash2,
   User
 } from "lucide-react"
+import { toast } from "sonner"
 import type { Id } from "../../../convex/_generated/dataModel"
 
 type MobileNavProps = {
@@ -134,80 +146,158 @@ function UserProfileDropdown({
   const { customer } = useCustomer({ errorOnNotFound: false })
   const isPremium = customer?.products?.some((p) => p.id === PRODUCT_IDS.pro) ?? false
   const { user } = useUser()
-  const { signOut } = useClerk()
+  const clerk = useClerk()
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   const handleSignOut = async () => {
-    await signOut({ redirectUrl: "/" })
+    await clerk.signOut({ redirectUrl: "/" })
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!user) return
+
+    try {
+      setIsDeleting(true)
+      await user.delete()
+      toast.success("Account deleted successfully")
+      window.location.href = "/"
+    } catch (error) {
+      console.error("Error deleting account:", error)
+      toast.error("Failed to delete account. Please try again.")
+      setIsDeleting(false)
+    }
   }
 
   if (!user) return null
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className={cn(
-            "relative flex size-8 items-center justify-center rounded-full ring-2 ring-border transition-all hover:ring-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-            sizeClass
-          )}
-          aria-label="User menu"
-        >
-          <Avatar className="size-8">
-            <AvatarImage
-              src={user.imageUrl}
-              alt={user.fullName || user.emailAddresses[0]?.emailAddress || "User"}
-            />
-            <AvatarFallback>
-              {user.fullName?.[0]?.toUpperCase() ||
-                user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() || (
-                  <User className="size-4" />
-                )}
-            </AvatarFallback>
-          </Avatar>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="w-56">
-        <div className="flex flex-col space-y-1 p-2">
-          <p className="text-sm font-medium leading-none">
-            {user.username || "User"}
-          </p>
-          <p className="text-xs leading-none text-muted-foreground">
-            {user.emailAddresses[0]?.emailAddress}
-          </p>
-        </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem className="flex items-center">
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-          </DropdownMenuItem>
-          {isPremium && (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className={cn(
+              "relative flex size-8 items-center justify-center rounded-full ring-2 ring-border transition-all hover:ring-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+              sizeClass
+            )}
+            aria-label="User menu"
+          >
+            <Avatar className="size-8">
+              <AvatarImage
+                src={user.imageUrl}
+                alt={user.fullName || user.emailAddresses[0]?.emailAddress || "User"}
+              />
+              <AvatarFallback>
+                {user.fullName?.[0]?.toUpperCase() ||
+                  user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() || (
+                    <User className="size-4" />
+                  )}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align={align} className="w-56">
+          <div className="flex flex-col space-y-1 p-2">
+            <p className="text-sm font-medium leading-none">
+              {user.username || "User"}
+            </p>
+            <p className="text-xs leading-none text-muted-foreground">
+              {user.emailAddresses[0]?.emailAddress}
+            </p>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
             <DropdownMenuItem className="flex items-center">
-              <CreditCard className="mr-2 h-4 w-4" />
-              <span>Billing</span>
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
             </DropdownMenuItem>
-          )}
-          <DropdownMenuItem className="flex items-center">
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
+            {isPremium && (
+              <DropdownMenuItem className="flex items-center">
+                <CreditCard className="mr-2 h-4 w-4" />
+                <span>Billing</span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem className="flex items-center">
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer flex items-center">
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Sign out</span>
           </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer flex items-center">
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Sign out</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setShowDeleteDialog(true)}
+            className="cursor-pointer flex items-center text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            <span>Delete account</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your account and remove all your data including projects, videos, and settings from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
 function CloudUploadToggle() {
+  const { isSignedIn } = useAuth()
   const cloudUploadEnabled = useVideoPlayerStore((state) => state.cloudUploadEnabled)
   const setCloudUploadEnabled = useVideoPlayerStore((state) => state.setCloudUploadEnabled)
 
+  const isDisabled = !isSignedIn
+
   const handleToggle = () => {
-    setCloudUploadEnabled(!cloudUploadEnabled)
+    if (isDisabled) {
+      toast.error("Sign in required", {
+        description: "Please sign in to enable cloud upload",
+      })
+      return
+    }
+
+    const newState = !cloudUploadEnabled
+    setCloudUploadEnabled(newState)
+
+    if (newState) {
+      toast.success("Cloud upload enabled", {
+        description: "Videos will be saved to your project and synced across devices",
+      })
+    } else {
+      toast.info("Cloud upload disabled", {
+        description: "Videos will only be edited locally in your browser",
+      })
+    }
+  }
+
+  const getTooltipText = () => {
+    if (isDisabled) {
+      return "Sign in to enable cloud upload"
+    }
+    return cloudUploadEnabled
+      ? "Cloud upload enabled - videos will be saved to the project"
+      : "Cloud upload disabled - videos will only be edited locally"
   }
 
   return (
@@ -216,11 +306,12 @@ function CloudUploadToggle() {
         <TooltipTrigger asChild>
           <button
             onClick={handleToggle}
+            disabled={isDisabled}
             className={cn(
               "h-8 w-8 flex items-center justify-center transition-colors rounded-md",
-              cloudUploadEnabled
-                ? "text-foreground hover:bg-accent"
-                : "text-muted-foreground hover:bg-accent"
+              isDisabled && "opacity-50 cursor-not-allowed",
+              !isDisabled && cloudUploadEnabled && "text-orange-500 hover:bg-orange-500/10",
+              !isDisabled && !cloudUploadEnabled && "text-muted-foreground hover:bg-accent"
             )}
             aria-label={cloudUploadEnabled ? "Cloud upload enabled" : "Cloud upload disabled"}
           >
@@ -232,11 +323,7 @@ function CloudUploadToggle() {
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          <span>
-            {cloudUploadEnabled
-              ? "Cloud upload enabled - videos will be saved to the project"
-              : "Cloud upload disabled - videos will only be edited locally"}
-          </span>
+          <span>{getTooltipText()}</span>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

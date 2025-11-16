@@ -1,6 +1,7 @@
 "use client"
 
 import { BrowserFrame } from "@/components/browser-frame"
+import { useTheme } from "@/components/theme-provider"
 import {
   Dropzone,
   DropZoneArea,
@@ -9,21 +10,21 @@ import {
   InfiniteProgress,
   useDropzone,
 } from "@/components/ui/dropzone"
+import { useCompositionStore } from "@/lib/composition-store"
+import { DEFAULT_UNSPLASH_PHOTO_URLS } from "@/lib/constants"
 import { useFrameOptionsStore } from "@/lib/frame-options-store"
+import { useLocalTimelineStore } from "@/lib/local-timeline-store"
 import { cn } from "@/lib/utils"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { setClearFileStatusesRef, useVideoPlayerStore } from "@/lib/video-player-store"
-import { useCompositionStore } from "@/lib/composition-store"
+import { gradients } from "@/presets/gradients"
 import { CloudUploadIcon } from "lucide-react"
 import type React from "react"
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 
 interface PreviewCanvasProps {
-  hideToolbars: boolean
-  currentTime: number
   videoRef: React.RefObject<HTMLVideoElement | null>
   videoSrc: string | null
-  isPlaying?: boolean
 }
 
 const getAspectRatioDimensions = (ratio: string) => {
@@ -37,7 +38,8 @@ const getAspectRatioDimensions = (ratio: string) => {
   return ratios[ratio] || "aspect-video"
 }
 
-export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, videoSrc, isPlaying = false }: PreviewCanvasProps) {
+export default function PreviewCanvas({ videoRef, videoSrc }: PreviewCanvasProps) {
+  const { theme } = useTheme()
   const {
     backgroundColor,
     backgroundType,
@@ -51,6 +53,9 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
     rotateX,
     rotateY,
     rotateZ,
+    setBackgroundColor,
+    setBackgroundType,
+    setImageBackground,
   } = useVideoOptionsStore()
   const {
     setVideoSrc,
@@ -59,14 +64,55 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
     setVideoFileName,
     setVideoFileSize,
     setVideoFileFormat,
-    loop,
     muted,
     isUploading,
     uploadProgress,
-    uploadStatus
+    uploadStatus,
+    cloudUploadEnabled,
   } = useVideoPlayerStore()
-  const { selectedFrame, frameRoundness, showStroke, arcDarkMode, frameHeight } = useFrameOptionsStore()
-  const { activeVideoBlock, getVideoTimeOffset } = useCompositionStore()
+  const { selectedFrame, frameRoundness, arcDarkMode, frameHeight } = useFrameOptionsStore()
+  const { activeVideoBlock } = useCompositionStore()
+  const { initializeLocalTimeline } = useLocalTimelineStore()
+
+  // React to theme changes and update background accordingly
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    // Determine if we're in dark mode based on the actual theme state
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+    // Only update if user hasn't manually changed the background
+    // we check if current background matches the default for the opposite theme
+    const isDefaultLightBg = backgroundColor === gradients[1].gradient && backgroundType === 'gradient'
+    const isDefaultDarkBg = backgroundType === 'image' && imageBackground === DEFAULT_UNSPLASH_PHOTO_URLS.regular
+
+    if (isDark && isDefaultLightBg) {
+      // Switching to dark mode
+      setBackgroundType('image')
+      setImageBackground(DEFAULT_UNSPLASH_PHOTO_URLS.regular)
+      setBackgroundColor('hsl(240 10% 3.9%)')
+    } else if (!isDark && isDefaultDarkBg) {
+      // Switching to light mode
+      setBackgroundType('gradient')
+      setBackgroundColor(gradients[1].gradient)
+      setImageBackground(null)
+    }
+  }, [theme, backgroundColor, backgroundType, imageBackground, setBackgroundColor, setBackgroundType, setImageBackground])
+
+  // Determine the actual background to display
+  const displayBackground = useMemo(() => {
+    if (backgroundType === 'image' && imageBackground) {
+      return {
+        backgroundImage: `url(${imageBackground})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    }
+
+    // For gradient or solid backgrounds, use backgroundColor directly
+    return { background: backgroundColor }
+  }, [backgroundType, imageBackground, backgroundColor])
 
   const dropzone = useDropzone({
     onDropFile: useCallback(async (file: File) => {
@@ -93,11 +139,23 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
       const format = file.type.split('/')[1] || file.name.split('.').pop() || 'unknown'
       setVideoFileFormat(format)
 
+      // if cloud is off, initialize local timeline when video metadata loads
+      if (!cloudUploadEnabled) {
+        const video = document.createElement('video')
+        video.preload = 'metadata'
+        video.onloadedmetadata = () => {
+          URL.revokeObjectURL(video.src)
+          setVideoDuration(video.duration)
+          initializeLocalTimeline(video.duration)
+        }
+        video.src = url
+      }
+
       return {
         status: "success",
         result: url,
       }
-    }, [setVideoSrc, setCurrentTime, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat]),
+    }, [setVideoSrc, setCurrentTime, setVideoDuration, setVideoFileName, setVideoFileSize, setVideoFileFormat, cloudUploadEnabled, initializeLocalTimeline]),
     validation: {
       accept: {
         "video/*": [".mp4", ".webm", ".mov", ".avi", ".mkv"],
@@ -111,45 +169,50 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
 
   // Apply timeline-based time offset for instant trim preview
   useEffect(() => {
-    if (!videoRef.current || !videoSrc) return
+    if (!videoRef.current || !activeVideoBlock) return
 
-    const timeOffset = getVideoTimeOffset()
+    const targetTime = activeVideoBlock.inAssetTime / 1000
+    const video = videoRef.current
 
-    // always apply the trim offset when not playing
-    // this ensures instant trimming without re-encoding
-    if (!isPlaying) {
-      if (Math.abs(videoRef.current.currentTime - timeOffset) > 0.01) {
-        videoRef.current.currentTime = timeOffset
+    // Only seek if video is ready and difference is significant (>50ms)
+    if (video.readyState < 2) return // Wait for HAVE_CURRENT_DATA or better
+
+    const timeDiff = Math.abs(video.currentTime - targetTime)
+
+    if (timeDiff > 0.05) {
+      try {
+        // Use fastSeek if available (faster, less accurate)
+        if ('fastSeek' in video && typeof video.fastSeek === 'function') {
+          video.fastSeek(targetTime)
+        } else {
+          video.currentTime = targetTime
+        }
+      } catch (e) {
+    // Silently ignore seek errors (video not ready, invalid time, etc)
       }
     }
-  }, [activeVideoBlock, getVideoTimeOffset, videoRef, isPlaying, currentTime, videoSrc])
+  }, [activeVideoBlock, videoRef])
 
-  // Apply transforms from the active video block
-  const videoTransforms = activeVideoBlock ? {
-    transform: `
-      scale(${activeVideoBlock.transforms.scale})
-      translateX(${activeVideoBlock.transforms.x}px)
-      translateY(${activeVideoBlock.transforms.y}px)
-      rotateZ(${activeVideoBlock.transforms.rotation}deg)
-    `,
-    opacity: activeVideoBlock.transforms.opacity,
-  } : {}
+  // Apply transforms from the active video block (memoized to prevent recalculation)
+  const videoTransforms = useMemo(() => {
+    if (!activeVideoBlock) return {}
+
+    return {
+      transform: `scale(${activeVideoBlock.transforms.scale}) translateX(${activeVideoBlock.transforms.x}px) translateY(${activeVideoBlock.transforms.y}px) rotateZ(${activeVideoBlock.transforms.rotation}deg)`,
+      opacity: activeVideoBlock.transforms.opacity,
+      willChange: 'transform', // Only transform for GPU acceleration
+      backfaceVisibility: 'hidden' as const,
+      perspective: 1000,
+      transformStyle: 'preserve-3d' as const,
+    }
+  }, [activeVideoBlock])
 
   return (
     <div className="w-full h-full flex items-center justify-center">
       {/* Canvas Background */}
       <div
         className="rounded-lg transition-colors duration-300 flex items-center justify-center shadow-lg max-w-4xl w-full h-full aspect-video"
-        style={
-          backgroundType === 'image' && imageBackground
-            ? {
-                backgroundImage: `url(${imageBackground})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-              }
-            : { background: backgroundColor }
-        }
+        style={displayBackground}
       >
         {/* Video Container */}
         <div
@@ -217,7 +280,7 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
                     <p className="text-white font-medium text-lg">
                       {uploadStatus || "Uploading..."}
                     </p>
-                    <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                       <div
                         className="bg-primary h-full transition-all duration-300 ease-out rounded-full"
                         style={{ width: `${uploadProgress}%` }}
@@ -232,12 +295,23 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
             )}
 
               {videoSrc ? (
-                <video
-                  ref={videoRef}
-                  src={videoSrc}
-                  className="w-full h-full object-cover transition-transform duration-100"
-                style={{
-                  ...videoTransforms,
+              <div
+                className="w-full h-full overflow-hidden"
+                style={activeVideoBlock?.cropRect ? {
+                  clipPath: `inset(${activeVideoBlock.cropRect.y}% ${100 - activeVideoBlock.cropRect.x - activeVideoBlock.cropRect.width}% ${100 - activeVideoBlock.cropRect.y - activeVideoBlock.cropRect.height}% ${activeVideoBlock.cropRect.x}%)`,
+                  borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
+                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
+                    : '0',
+                  borderTopRightRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
+                    ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
+                    : '0',
+                  borderBottomLeftRadius: selectedFrame === 'Arc'
+                    ? 'calc(' + frameRoundness + 'rem - 9px)'
+                    : frameRoundness + 'rem',
+                  borderBottomRightRadius: selectedFrame === 'Arc'
+                    ? 'calc(' + frameRoundness + 'rem - 9px)'
+                    : frameRoundness + 'rem',
+                } : {
                   borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
                     ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
                     : '0',
@@ -251,21 +325,41 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
                     ? 'calc(' + frameRoundness + 'rem - 9px)'
                     : frameRoundness + 'rem',
                 }}
-                  loop={loop}
-                  muted={muted}
-                  onClick={(e) => {
-                    const video = e.currentTarget
-                    if (video.paused) {
-                      video.play()
-                    } else {
-                      video.pause()
-                    }
-                  }}
-                />
+              >
+                <div className="w-full h-full" style={videoTransforms}>
+                  <video
+                    ref={videoRef}
+                    src={videoSrc}
+                    className="w-full h-full object-cover"
+                    style={{
+                      borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
+                        ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
+                        : '0',
+                      borderTopRightRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
+                        ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
+                        : '0',
+                      borderBottomLeftRadius: selectedFrame === 'Arc'
+                        ? 'calc(' + frameRoundness + 'rem - 9px)'
+                        : frameRoundness + 'rem',
+                      borderBottomRightRadius: selectedFrame === 'Arc'
+                        ? 'calc(' + frameRoundness + 'rem - 9px)'
+                        : frameRoundness + 'rem',
+                    }}
+                    loop={false}
+                    muted={muted}
+                    playsInline
+                    preload="auto"
+                    disablePictureInPicture
+                  />
+                </div>
+              </div>
               ) : (
                   <Dropzone {...dropzone}>
                     <div className="h-full w-full">
-                    <DropZoneArea className="h-full w-full border-6 border-dashed border-border/20 hover:border-border transition-colors bg-transparent hover:bg-transparent rounded-none"
+                    <DropZoneArea
+                      className="h-full w-full border-2 border-dashed transition-all duration-200 bg-transparent rounded-none group/dropzone
+                        border-foreground/5 hover:border-foreground/30
+                        hover:bg-foreground/2 dark:hover:bg-foreground/3"
                       style={{
                         borderTopLeftRadius: (selectedFrame === 'None' || selectedFrame === 'Arc' || selectedFrame === 'Shadow')
                           ? (selectedFrame === 'Arc' ? 'calc(' + frameRoundness + 'rem - 9px)' : frameRoundness + 'rem')
@@ -281,12 +375,14 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
                           : frameRoundness + 'rem',
                       }}>
                         <DropzoneTrigger className="flex flex-col items-center justify-center gap-4 bg-transparent h-full w-full p-10 text-center">
-                          <CloudUploadIcon className="size-12 text-muted-foreground" />
+                        <div className="rounded-full bg-foreground/10 dark:bg-foreground/10 p-6 transition-all duration-200 group-hover/dropzone:bg-foreground/10 dark:group-hover/dropzone:bg-foreground/15">
+                          <CloudUploadIcon className="size-10 text-foreground/40 dark:text-foreground/50 transition-colors duration-200 group-hover/dropzone:text-foreground/60 dark:group-hover/dropzone:text-foreground/70" />
+                        </div>
                           <div className="flex flex-col gap-2">
-                            <p className="text-lg font-semibold text-foreground">
+                          <p className="text-base font-medium text-foreground/80 dark:text-foreground/90 transition-colors duration-200 group-hover/dropzone:text-foreground">
                               Drop video here or click to upload
                             </p>
-                            <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-foreground/50 dark:text-foreground/60">
                               Supports MP4, WebM, MOV, AVI, MKV (max 500MB)
                             </p>
                           </div>
@@ -295,10 +391,10 @@ export default function PreviewCanvas({ hideToolbars, currentTime, videoRef, vid
                               {dropzone.fileStatuses.map((file) => (
                                 <div key={file.id} className="flex flex-col gap-2">
                                   <div className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground truncate flex-1 mr-2">
+                                    <span className="text-foreground/60 dark:text-foreground/70 truncate flex-1 mr-2">
                                       {file.fileName}
                                     </span>
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-xs text-foreground/50 dark:text-foreground/60">
                                       {(file.file.size / (1024 * 1024)).toFixed(2)} MB
                                     </span>
                                   </div>

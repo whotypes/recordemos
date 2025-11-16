@@ -21,6 +21,12 @@ interface CompositionState {
       opacity: number
       rotation: number
     }
+    cropRect?: {
+      x: number
+      y: number
+      width: number
+      height: number
+    }
   } | null
 
   // Methods
@@ -70,6 +76,7 @@ export const useCompositionStore = create<CompositionState>((set, get) => ({
           assetId: activeVideo.block.assetId!,
           inAssetTime: activeVideo.inAssetTime,
           transforms: activeVideo.transforms,
+          cropRect: activeVideo.cropRect,
         }
       })
     } else {

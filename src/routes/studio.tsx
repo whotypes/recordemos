@@ -3,6 +3,7 @@ import ExportModule from "@/components/export-module"
 import PreviewCanvas from "@/components/preview-canvas"
 import TimelineEditor from "@/components/timeline-editor"
 import StudioNavbar from "@/components/ui/studio-navbar"
+import { DEFAULT_UNSPLASH_PHOTO_URLS } from "@/lib/constants"
 import { useProjectRestore } from "@/lib/hooks/use-project-restore"
 import { useProjectSettingsSync } from "@/lib/hooks/use-project-settings-sync"
 import { useVideoPlayer } from "@/lib/hooks/use-video-player"
@@ -33,6 +34,17 @@ export const Route = createFileRoute("/studio")({
             await opts.context.queryClient.ensureQueryData(
                 convexQuery(api.projects.listForCurrentUser, {}),
             );
+        }
+
+        // Prefetch the default wallpaper image for dark mode
+        // this ensures the image is cached and ready to display
+        if (typeof window !== 'undefined') {
+            const isDark = document.documentElement.classList.contains('dark')
+            if (isDark) {
+                // preload the image in the background
+                const img = new Image()
+                img.src = DEFAULT_UNSPLASH_PHOTO_URLS.regular
+            }
         }
     },
     component: Studio,
@@ -86,7 +98,8 @@ function Studio() {
         setVideoDuration,
         videoSrc,
         setVideoSrc,
-        scrubToTime
+        scrubToTime,
+        loop: shouldLoop
     } = useVideoPlayerStore()
 
     const { videoRef } = useVideoPlayer(videoSrc)
@@ -118,8 +131,67 @@ function Studio() {
         setCompositionTime(currentTime * 1000)
     }, [currentTime, setCompositionTime])
 
+    // Timeline-driven playback loop (RAF-based master clock)
+    useEffect(() => {
+        if (!isPlaying) return
+
+        let last = performance.now()
+        let rafId: number
+        let lastUpdateTime = 0
+        const UPDATE_INTERVAL = 16.67 // ~60fps, only update stores at this rate
+
+        const tick = (t: number) => {
+            const dt = t - last
+            last = t
+
+            const curr = useCompositionStore.getState().currentTimeMs
+            const next = curr + dt
+
+            // Get the active video block to determine boundaries
+            const compiler = useCompositionStore.getState().compiler
+            const activeBlock = compiler?.getActiveVideoBlock(curr)
+
+            // Calculate timeline boundaries based on active block
+            let timelineEnd = videoDuration * 1000
+            let timelineStart = 0
+
+            if (activeBlock) {
+                // Use block boundaries for looping
+                timelineStart = activeBlock.block.startMs
+                timelineEnd = activeBlock.block.startMs + activeBlock.block.durationMs
+            }
+
+            // Handle timeline boundaries
+            let finalTime = next
+            if (next >= timelineEnd) {
+                if (shouldLoop) {
+                    finalTime = timelineStart
+                } else {
+                    // Stop at the end
+                    setIsPlaying(false)
+                    return
+                }
+            }
+
+            // Throttle store updates to reduce re-renders (only update at ~60fps max)
+            const timeSinceLastUpdate = t - lastUpdateTime
+            if (timeSinceLastUpdate >= UPDATE_INTERVAL) {
+                useCompositionStore.getState().setCurrentTime(finalTime)
+                setCurrentTime(finalTime / 1000)
+                lastUpdateTime = t
+            }
+
+            rafId = requestAnimationFrame(tick)
+        }
+
+        rafId = requestAnimationFrame(tick)
+
+        return () => {
+            cancelAnimationFrame(rafId)
+        }
+    }, [isPlaying, videoDuration, shouldLoop, setCurrentTime, setIsPlaying])
+
     const aspectRatio = useVideoOptionsStore((state) => state.aspectRatio)
-    const hideToolbars = useVideoOptionsStore((state) => state.hideToolbars)
 
     const handleVideoBlockDelete = () => {
         if (videoSrc && videoSrc.startsWith("blob:")) {
@@ -142,11 +214,8 @@ function Studio() {
                 <div className="flex-1 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-auto bg-background flex items-center justify-center p-6 relative">
                         <PreviewCanvas
-                            hideToolbars={hideToolbars}
-                            currentTime={currentTime}
                             videoRef={videoRef}
                             videoSrc={videoSrc}
-                            isPlaying={isPlaying}
                         />
                     </div>
 
@@ -155,8 +224,38 @@ function Studio() {
                             projectId={projectId as Id<"projects"> | null}
                             currentTime={currentTime}
                             setCurrentTime={(time) => {
+                                const timeMs = time * 1000
+
+                                // Check if this time is within an active block
+                                const compiler = useCompositionStore.getState().compiler
+                                const activeBlock = compiler?.getActiveVideoBlock(timeMs)
+
+                                // If scrubbing to a trimmed area (no active block), snap to nearest block start
+                                if (!activeBlock && compiler) {
+                                    const allBlocks = compiler.getBlocks()
+
+                                    if (allBlocks && allBlocks.length > 0) {
+                                        // Find the nearest block start
+                                        const videoBlocks = allBlocks.filter(b => b.blockType === 'video')
+                                        if (videoBlocks.length > 0) {
+                                            // Find closest block start
+                                            const closest = videoBlocks.reduce((prev, curr) => {
+                                                const prevDiff = Math.abs(prev.startMs - timeMs)
+                                                const currDiff = Math.abs(curr.startMs - timeMs)
+                                                return currDiff < prevDiff ? curr : prev
+                                            })
+
+                                            const snappedTime = closest.startMs / 1000
+                                            scrubToTime(snappedTime, videoRef)
+                                            setCompositionTime(closest.startMs)
+                                            return
+                                        }
+                                    }
+                                }
+
+                                // Normal scrubbing within a block
                                 scrubToTime(time, videoRef)
-                                setCompositionTime(time * 1000)
+                                setCompositionTime(timeMs)
                             }}
                             isPlaying={isPlaying}
                             setIsPlaying={setIsPlaying}

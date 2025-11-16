@@ -1,4 +1,6 @@
 import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
+import { useLocalTimelineStore } from "@/lib/local-timeline-store"
+import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { BlockData, convexBlockToTimelineBlock } from "@/lib/types/timeline"
 import { useCompositionStore } from "@/lib/composition-store"
 import { useMutation, useQuery } from "convex/react"
@@ -16,6 +18,19 @@ export const useTimelineBlocks = (
 ) => {
   const { setCurrentProjectId } = useTimelineBlocksStore()
   const { updateBlocks } = useCompositionStore()
+  const cloudUploadEnabled = useVideoPlayerStore((state) => state.cloudUploadEnabled)
+
+  // determine if we're in local mode (cloud off or no project)
+  const isLocalMode = !cloudUploadEnabled || !projectId
+
+  // local timeline state
+  const {
+    localBlocks,
+    localTracks,
+    addLocalBlock,
+    updateLocalBlock,
+    removeLocalBlock,
+  } = useLocalTimelineStore()
 
   useEffect(() => {
     setCurrentProjectId(projectId)
@@ -23,12 +38,12 @@ export const useTimelineBlocks = (
 
   const convexBlocks = useQuery(
     api.timeline_blocks.list,
-    projectId ? { projectId } : "skip"
+    projectId && !isLocalMode ? { projectId } : "skip"
   )
 
   const tracks = useQuery(
     api.timeline_tracks.list,
-    projectId ? { projectId } : "skip"
+    projectId && !isLocalMode ? { projectId } : "skip"
   )
 
   const createBlock = useMutation(api.timeline_blocks.create)
@@ -40,37 +55,56 @@ export const useTimelineBlocks = (
   const initializeTracks = useMutation(api.timeline_tracks.initializeDefaultTracks)
 
   const trackMap = useMemo(() => {
+    if (isLocalMode) {
+      const map = new Map<string, number>()
+      localTracks.forEach((track) => {
+        map.set(track.id, track.order)
+      })
+      return map
+    }
+
     if (!tracks) return new Map<string, number>()
     const map = new Map<string, number>()
     tracks.forEach((track) => {
       map.set(track._id, track.order)
     })
     return map
-  }, [tracks])
+  }, [isLocalMode, localTracks, tracks])
 
   const blocks = useMemo(() => {
+    if (isLocalMode) {
+      return localBlocks.map((block) =>
+        convexBlockToTimelineBlock(block, trackMap.get(block.trackId) ?? 0)
+      )
+    }
+
     if (!convexBlocks || !tracks) return []
     return convexBlocks.map((block) =>
       convexBlockToTimelineBlock(block, trackMap.get(block.trackId) ?? 0)
     )
-  }, [convexBlocks, tracks, trackMap])
+  }, [isLocalMode, localBlocks, convexBlocks, tracks, trackMap])
 
   const overlayTrack = useMemo(() => {
+    if (isLocalMode) {
+      return localTracks.find((t) => t.kind === "overlay")
+    }
     return tracks?.find((t) => t.kind === "overlay")
-  }, [tracks])
+  }, [isLocalMode, localTracks, tracks])
 
   useEffect(() => {
-    if (projectId && tracks && tracks.length === 0) {
+    if (projectId && !isLocalMode && tracks && tracks.length === 0) {
       initializeTracks({ projectId })
     }
-  }, [projectId, tracks, initializeTracks])
+  }, [projectId, isLocalMode, tracks, initializeTracks])
 
   // Update composition store when blocks change
   useEffect(() => {
-    if (convexBlocks) {
+    if (isLocalMode) {
+      updateBlocks(localBlocks)
+    } else if (convexBlocks) {
       updateBlocks(convexBlocks)
     }
-  }, [convexBlocks, updateBlocks])
+  }, [isLocalMode, localBlocks, convexBlocks, updateBlocks])
 
   const handleBlockDragEnd = useCallback(async (blockId: string, newStart: number) => {
     const block = blocks.find((b) => b.id === blockId)
@@ -95,11 +129,17 @@ export const useTimelineBlocks = (
 
     adjustedStart = Math.max(0, Math.min(videoDuration - block.duration, adjustedStart))
 
-    await updatePosition({
-      blockId: blockId as Id<"timeline_blocks">,
-      startMs: Math.round(adjustedStart * 1000),
-    })
-  }, [blocks, videoDuration, updatePosition])
+    if (isLocalMode) {
+      updateLocalBlock(blockId, {
+        startMs: Math.round(adjustedStart * 1000),
+      })
+    } else {
+      await updatePosition({
+        blockId: blockId as Id<"timeline_blocks">,
+        startMs: Math.round(adjustedStart * 1000),
+      })
+    }
+  }, [blocks, videoDuration, isLocalMode, updateLocalBlock, updatePosition])
 
   const handleBlockResizeStart = useCallback((_blockId: string, _side: "left" | "right") => {
     // track which side is being resized if needed
@@ -131,12 +171,19 @@ export const useTimelineBlocks = (
     adjustedStart = Math.max(0, adjustedStart)
     adjustedDuration = Math.max(0.2, Math.min(videoDuration - adjustedStart, adjustedDuration))
 
-    await updateSize({
-      blockId: blockId as Id<"timeline_blocks">,
-      startMs: Math.round(adjustedStart * 1000),
-      durationMs: Math.round(adjustedDuration * 1000),
-    })
-  }, [blocks, videoDuration, updateSize])
+    if (isLocalMode) {
+      updateLocalBlock(blockId, {
+        startMs: Math.round(adjustedStart * 1000),
+        durationMs: Math.round(adjustedDuration * 1000),
+      })
+    } else {
+      await updateSize({
+        blockId: blockId as Id<"timeline_blocks">,
+        startMs: Math.round(adjustedStart * 1000),
+        durationMs: Math.round(adjustedDuration * 1000),
+      })
+    }
+  }, [blocks, videoDuration, isLocalMode, updateLocalBlock, updateSize])
 
   const handleBlockDelete = useCallback(async (blockId: string) => {
     const block = blocks.find((b) => b.id === blockId)
@@ -146,12 +193,16 @@ export const useTimelineBlocks = (
       onVideoBlockDelete()
     }
 
-    await removeBlock({ blockId: blockId as Id<"timeline_blocks"> })
+    if (isLocalMode) {
+      removeLocalBlock(blockId)
+    } else {
+      await removeBlock({ blockId: blockId as Id<"timeline_blocks"> })
+    }
 
     if (selectedBlock === blockId) {
       setSelectedBlock(null)
     }
-  }, [blocks, removeBlock, selectedBlock, setSelectedBlock, onVideoBlockDelete])
+  }, [blocks, isLocalMode, removeLocalBlock, removeBlock, selectedBlock, setSelectedBlock, onVideoBlockDelete])
 
   const handleBlockDuplicate = useCallback(async (blockId: string) => {
     const block = blocks.find((b) => b.id === blockId)
@@ -159,51 +210,100 @@ export const useTimelineBlocks = (
 
     const newStart = Math.min(block.start + block.duration + 0.2, videoDuration - 0.5)
 
-    await duplicateBlock({
-      blockId: blockId as Id<"timeline_blocks">,
-      newStartMs: Math.round(newStart * 1000),
-    })
-  }, [blocks, videoDuration, duplicateBlock])
+    if (isLocalMode) {
+      const sourceBlock = useLocalTimelineStore.getState().getLocalBlock(blockId)
+      if (sourceBlock) {
+        addLocalBlock({
+          ...sourceBlock,
+          startMs: Math.round(newStart * 1000),
+        })
+      }
+    } else {
+      await duplicateBlock({
+        blockId: blockId as Id<"timeline_blocks">,
+        newStartMs: Math.round(newStart * 1000),
+      })
+    }
+  }, [blocks, videoDuration, isLocalMode, addLocalBlock, duplicateBlock])
 
   const handleAddBlock = useCallback(async (blockData: BlockData) => {
-    if (!projectId || !overlayTrack) return
+    if (!overlayTrack) return
 
-    await createBlock({
-      projectId,
-      trackId: overlayTrack._id,
-      blockType: blockData.type,
-      startMs: Math.round(Math.max(0, currentTime) * 1000),
-      durationMs: Math.round(1.5 * 1000),
-      metadata: {
-        label: blockData.label,
-        color: blockData.color,
-        zoomLevel: blockData.zoomLevel,
-        cropX: blockData.cropX,
-        cropY: blockData.cropY,
-        cropW: blockData.cropW,
-        cropH: blockData.cropH,
-      },
-    })
-  }, [projectId, overlayTrack, currentTime, createBlock])
+    if (isLocalMode) {
+      addLocalBlock({
+        trackId: overlayTrack.id as Id<"timeline_tracks">,
+        blockType: blockData.type,
+        startMs: Math.round(Math.max(0, currentTime) * 1000),
+        durationMs: Math.round(1.5 * 1000),
+        trimStartMs: 0,
+        trimEndMs: 0,
+        zIndex: 1,
+        transforms: {
+          scale: 1,
+          x: 0,
+          y: 0,
+          opacity: 1,
+          rotation: 0,
+        },
+        metadata: {
+          label: blockData.label,
+          color: blockData.color,
+          zoomLevel: blockData.zoomLevel,
+          cropX: blockData.cropX,
+          cropY: blockData.cropY,
+          cropW: blockData.cropW,
+          cropH: blockData.cropH,
+        },
+      })
+    } else {
+      if (!projectId) return
+      await createBlock({
+        projectId,
+        trackId: overlayTrack._id as Id<"timeline_tracks">,
+        blockType: blockData.type,
+        startMs: Math.round(Math.max(0, currentTime) * 1000),
+        durationMs: Math.round(1.5 * 1000),
+        metadata: {
+          label: blockData.label,
+          color: blockData.color,
+          zoomLevel: blockData.zoomLevel,
+          cropX: blockData.cropX,
+          cropY: blockData.cropY,
+          cropW: blockData.cropW,
+          cropH: blockData.cropH,
+        },
+      })
+    }
+  }, [isLocalMode, projectId, overlayTrack, currentTime, addLocalBlock, createBlock])
 
   const handleBlockTrimStart = useCallback((_blockId: string, _side: "left" | "right") => {
     // Track which side is being trimmed if needed
   }, [])
 
   const handleBlockTrimEnd = useCallback(async (blockId: string, trimStartMs: number, trimEndMs: number) => {
-    const block = convexBlocks?.find((b) => b._id === blockId)
-    if (!block) return
+    if (isLocalMode) {
+      const block = localBlocks.find((b) => b._id === blockId)
+      if (!block) return
 
-    await updateTrim({
-      blockId: blockId as Id<"timeline_blocks">,
-      trimStartMs: Math.round(trimStartMs),
-      trimEndMs: Math.round(trimEndMs),
-    })
-  }, [convexBlocks, updateTrim])
+      updateLocalBlock(blockId, {
+        trimStartMs: Math.round(trimStartMs),
+        trimEndMs: Math.round(trimEndMs),
+      })
+    } else {
+      const block = convexBlocks?.find((b) => b._id === blockId)
+      if (!block) return
+
+      await updateTrim({
+        blockId: blockId as Id<"timeline_blocks">,
+        trimStartMs: Math.round(trimStartMs),
+        trimEndMs: Math.round(trimEndMs),
+      })
+    }
+  }, [isLocalMode, localBlocks, convexBlocks, updateLocalBlock, updateTrim])
 
   return {
     blocks,
-    convexBlocks,
+    convexBlocks: isLocalMode ? localBlocks : convexBlocks,
     handleBlockDragEnd,
     handleBlockResizeStart,
     handleBlockResizeEnd,
