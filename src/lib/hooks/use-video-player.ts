@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
-import { useCompositionStore } from "@/lib/composition-store"
 
-export const useVideoPlayer = (videoSrc: string | null, blocks?: any[]) => {
+export const useVideoPlayer = (videoSrc: string | null) => {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const {
@@ -13,8 +12,6 @@ export const useVideoPlayer = (videoSrc: string | null, blocks?: any[]) => {
     setVideoDuration,
     loop
   } = useVideoPlayerStore()
-
-  const { setCurrentTime: setCompositionTime, getVideoTimeOffset } = useCompositionStore()
 
   // Handle metadata to get actual video duration
   useEffect(() => {
@@ -47,13 +44,9 @@ export const useVideoPlayer = (videoSrc: string | null, blocks?: any[]) => {
 
     const tick = () => {
       if (videoRef.current && isPlaying) {
-        // During playback, sync timeline time to video time
         const raw = videoRef.current.currentTime
         lastTime = raw
         setCurrentTime(lastTime)
-
-        // Update composition time in milliseconds
-        setCompositionTime(lastTime * 1000)
       }
       rafId = requestAnimationFrame(tick)
     }
@@ -63,7 +56,7 @@ export const useVideoPlayer = (videoSrc: string | null, blocks?: any[]) => {
     return () => {
       cancelAnimationFrame(rafId)
     }
-  }, [isPlaying, videoSrc, setCurrentTime, setCompositionTime])
+  }, [isPlaying, videoSrc, setCurrentTime])
 
   // Video event listeners (ended, play, pause only - no timeupdate)
   useEffect(() => {

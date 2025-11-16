@@ -131,4 +131,11 @@ export class TimelineCompiler {
   updateBlocks(blocks: ConvexTimelineBlock[]) {
     this.blocks = blocks
   }
+
+  /**
+   * Get all blocks
+   */
+  getBlocks(): ConvexTimelineBlock[] {
+    return this.blocks
+  }
 }

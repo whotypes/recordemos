@@ -77,11 +77,28 @@ interface VideoOptionsState {
 export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
   // detect theme and set appropriate default background
   const getDefaultBackground = () => {
-    if (typeof window === 'undefined') return "#1a1a1a"
+    if (typeof window === 'undefined') {
+      // SSR: return gradient for light mode
+      return gradients[1].gradient
+    }
 
     const isDark = document.documentElement.classList.contains('dark')
-    // light mode: use a light gradient, dark mode: use dark color
-    return isDark ? gradients[41].gradient : gradients[1].gradient
+    // light mode: use gradient[1], dark mode: use solid dark color
+    return isDark ? 'hsl(240 10% 3.9%)' : gradients[1].gradient
+  }
+
+  const getDefaultBackgroundType = () => {
+    if (typeof window === 'undefined') return 'gradient'
+    const isDark = document.documentElement.classList.contains('dark')
+    // light mode: gradient, dark mode: image
+    return isDark ? 'image' : 'gradient'
+  }
+
+  const getDefaultImageBackground = () => {
+    if (typeof window === 'undefined') return null
+    const isDark = document.documentElement.classList.contains('dark')
+    // only set image background in dark mode
+    return isDark ? DEFAULT_UNSPLASH_PHOTO_URLS.regular : null
   }
 
   // Initialize gradient angle CSS variable
@@ -91,7 +108,7 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
 
   // Load saved tab index from localStorage
   const getSavedTabIndex = () => {
-    if (typeof window === 'undefined') return 0
+    if (typeof window === 'undefined') return 1
     const saved = localStorage.getItem('video-options-active-tab-index')
     if (saved !== null) {
       const index = parseInt(saved, 10)
@@ -99,7 +116,7 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
         return index
       }
     }
-    return 0
+    return 1
   }
 
   return {
@@ -134,10 +151,10 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
       set({ activeTabIndex: index })
     },
 
-    // Background - theme-aware default
+    // Background - theme-aware default (gradient for light mode, image for dark mode)
     backgroundColor: getDefaultBackground(),
   setBackgroundColor: (color) => set({ backgroundColor: color }),
-    backgroundType: 'image',
+    backgroundType: getDefaultBackgroundType(),
   setBackgroundType: (type) => set({ backgroundType: type }),
   gradientAngle: 170,
   setGradientAngle: (angle) => {
@@ -146,7 +163,7 @@ export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
     }
     set({ gradientAngle: angle })
   },
-    imageBackground: DEFAULT_UNSPLASH_PHOTO_URLS.regular,
+    imageBackground: getDefaultImageBackground(),
     setImageBackground: (url) => set({ imageBackground: url }),
     highResBackground: false,
     setHighResBackground: (highRes) => set({ highResBackground: highRes }),

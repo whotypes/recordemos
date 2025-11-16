@@ -1,4 +1,5 @@
 import { useVideoPlayerStore } from "@/lib/video-player-store";
+import { useLocalTimelineStore } from "@/lib/local-timeline-store";
 import { useUploadFile } from "@convex-dev/r2/react";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
@@ -51,7 +52,10 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
     setIsUploading,
     setUploadProgress,
     setUploadStatus,
+    cloudUploadEnabled,
   } = useVideoPlayerStore();
+
+  const { initializeLocalTimeline } = useLocalTimelineStore();
 
   const uploadFile = useUploadFile(api.assets);
   const insertAssetRow = useMutation(api.assets.insertAssetRow);
@@ -80,14 +84,14 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
   const uploadVideoFile = async (
     file: File,
     options?: UploadOptions
-  ): Promise<{ blobUrl: string; assetId?: Id<"assets"> }> => {
+  ): Promise<{ blobUrl: string; assetId?: Id<"assets">; uploadFailed?: boolean }> => {
     // clean up previous blob URL if it exists
     const currentSrc = useVideoPlayerStore.getState().videoSrc;
     if (currentSrc && currentSrc.startsWith("blob:")) {
       URL.revokeObjectURL(currentSrc);
     }
 
-    // create blob URL for instant playback
+    // create blob URL for instant playback - this always works locally
     const blobUrl = URL.createObjectURL(file);
     setVideoSrc(blobUrl);
     setCurrentTime(0);
@@ -100,12 +104,35 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
       file.type.split("/")[1] || file.name.split(".").pop() || "unknown";
     setVideoFileFormat(format);
 
-    // if no projectId provided, just return blob URL for local playback
-    if (!options?.projectId) {
+    // if cloud upload is disabled, initialize local timeline and return blob URL
+    if (!cloudUploadEnabled) {
+      try {
+        const metadata = await extractVideoMetadata(file);
+        setVideoDuration(metadata.duration);
+        initializeLocalTimeline(metadata.duration);
+        toast.success("Video loaded for local editing only");
+      } catch (error) {
+        console.error("Failed to extract metadata:", error);
+        toast.warning("Video loaded but timeline may not work correctly");
+      }
       return { blobUrl };
     }
 
-    // extract duration and upload
+    // if no projectId provided, initialize local timeline and return blob URL
+    if (!options?.projectId) {
+      try {
+        const metadata = await extractVideoMetadata(file);
+        setVideoDuration(metadata.duration);
+        initializeLocalTimeline(metadata.duration);
+        toast.success("Video loaded for local editing");
+      } catch (error) {
+        console.error("Failed to extract metadata:", error);
+        toast.warning("Video loaded but timeline may not work correctly");
+      }
+      return { blobUrl };
+    }
+
+    // extract duration and upload to cloud
     try {
       setIsUploading(true);
       setUploadProgress(10);
@@ -171,15 +198,16 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
 
       return { blobUrl, assetId };
     } catch (error) {
-      console.error("Upload error:", error);
+      console.error("Cloud upload error:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to upload video";
 
+      // provide specific error messages but emphasize local functionality still works
       if (errorMessage.includes("Project not found")) {
-        toast.error("Project not found. Please select a valid project.");
+        toast.error("Cloud upload failed: Project not found. Video available for local editing only.");
       } else if (errorMessage.includes("Not authorized")) {
-        toast.error("You don't have permission to upload to this project.");
+        toast.error("Cloud upload failed: Not authorized. Video available for local editing only.");
       } else {
-        toast.error("Failed to upload video");
+        toast.error("Cloud upload failed. Video available for local editing only.");
       }
 
       // reset upload state on error
@@ -187,7 +215,8 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
       setUploadProgress(0);
       setUploadStatus(null);
 
-      return { blobUrl };
+      // local blob URL still works even if cloud upload failed
+      return { blobUrl, uploadFailed: true };
     }
   };
 

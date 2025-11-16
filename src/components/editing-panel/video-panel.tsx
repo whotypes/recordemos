@@ -97,33 +97,41 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
       return
     }
 
-    if (!cloudUploadEnabled) {
-      toast.error("Cloud upload is disabled. Enable it in the navbar to upload recordings.")
-      return
-    }
+    const file = new File([recordedVideo.blob], recordedVideo.fileName, {
+      type: "video/webm",
+    })
 
-    if (!projectId) {
-      toast.error("Please create or select a project first to save your recording")
+    // if cloud upload is disabled or no project, just keep it local
+    if (!cloudUploadEnabled || !projectId) {
+      if (!cloudUploadEnabled) {
+        toast.info("Recording available for local editing. Enable cloud upload to save to project.")
+      } else {
+        toast.info("Recording available for local editing. Create a project to save to cloud.")
+      }
+      clearRecordedVideo()
       return
     }
 
     // check if project verification failed
     if (projectVerification && !projectVerification.valid) {
-      toast.error(projectVerification.error || "Cannot upload to this project")
+      toast.warning(`${projectVerification.error || "Cannot upload to this project"}. Recording available for local editing.`)
+      clearRecordedVideo()
       return
     }
 
-    const file = new File([recordedVideo.blob], recordedVideo.fileName, {
-      type: "video/webm",
-    })
-
-    await uploadVideoFile(file, {
+    // attempt cloud upload
+    const result = await uploadVideoFile(file, {
       projectId: projectId as Id<"projects">,
       onUploadComplete: (assetId) => {
         setCurrentClipAssetId(assetId)
         clearRecordedVideo()
       },
     })
+
+    // if upload failed, recording is still available locally
+    if (result.uploadFailed) {
+      clearRecordedVideo()
+    }
   }
 
   const handleReset = () => {

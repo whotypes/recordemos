@@ -1,6 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
-import { Film, Frame, Monitor, Move, Palette } from "lucide-react"
+import { Frame, Monitor, Move, Palette, Play } from "lucide-react"
 import BackgroundSelector from "./background-selector"
 import BrowserAppearance from "./browser-appearance"
 import SidebarButton from "./sidebar-button"
@@ -21,7 +21,7 @@ export default function EditingPanel({ projectId, onExport }: EditingPanelProps)
     {
       id: 'video',
       text: 'Video',
-      icon: <Film size={20} />,
+      icon: <Play size={20} />,
       component: <VideoPanel projectId={projectId} onExport={onExport || (() => { })} />,
     },
     {

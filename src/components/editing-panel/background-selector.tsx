@@ -74,7 +74,7 @@ export default function BackgroundSelector() {
   } = useQuery({
     queryKey: ["unsplash-patterns", currentPage],
     queryFn: () => fetchUnsplashPatterns(currentPage),
-    enabled: !isDisabled,
+    staleTime: 1000 * 60 * 5, // cache for 5 minutes
   })
 
   useEffect(() => {

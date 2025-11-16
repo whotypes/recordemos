@@ -3,12 +3,13 @@
 import ScrubberTrack from "@/components/timeline/scrubber-track"
 import TimelineCanvas from "@/components/timeline/timeline-canvas"
 import PlaybackControls from "@/components/ui/playback-controls"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useTimelineBlocks } from "@/lib/hooks/use-timeline-blocks"
 import { useTimelineScrubber } from "@/lib/hooks/use-timeline-scrubber"
-import { Plus, ZoomIn, Move, Scissors } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { BlockData } from "@/lib/types/timeline"
+import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { Move, Plus, Scissors, ZoomIn } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import type { Id } from "../../convex/_generated/dataModel"
 
 interface TimelineEditorProps {
@@ -62,6 +63,11 @@ export default function TimelineEditor({
   const [showAddBlockPopover, setShowAddBlockPopover] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  const loop = useVideoPlayerStore((state) => state.loop)
+  const muted = useVideoPlayerStore((state) => state.muted)
+  const setLoop = useVideoPlayerStore((state) => state.setLoop)
+  const setMuted = useVideoPlayerStore((state) => state.setMuted)
+
   const {
     blocks,
     handleBlockDragEnd,
@@ -91,6 +97,14 @@ export default function TimelineEditor({
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying)
+  }
+
+  const handleToggleLoop = () => {
+    setLoop(!loop)
+  }
+
+  const handleToggleMute = () => {
+    setMuted(!muted)
   }
 
   useEffect(() => {
@@ -149,8 +163,12 @@ export default function TimelineEditor({
             currentTime={currentTime}
             videoDuration={videoDuration}
             isPlaying={isPlaying}
+            loop={loop}
+            muted={muted}
             onPlayPause={handlePlayPause}
             onSkipToStart={() => setCurrentTime(0)}
+            onToggleLoop={handleToggleLoop}
+            onToggleMute={handleToggleMute}
           />
         </div>
       )}

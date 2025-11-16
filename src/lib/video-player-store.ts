@@ -1,5 +1,6 @@
 import type { Id } from "convex/_generated/dataModel";
 import { create } from "zustand";
+import { useLocalTimelineStore } from "./local-timeline-store";
 
 let clearFileStatusesRef: (() => void) | null = null;
 
@@ -86,7 +87,7 @@ export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
   setVideoFileFormat: (format) => set({ videoFileFormat: format }),
 
   // cloud upload preference
-  cloudUploadEnabled: true,
+  cloudUploadEnabled: false,
   setCloudUploadEnabled: (enabled) => set({ cloudUploadEnabled: enabled }),
 
   // upload progress tracking
@@ -106,6 +107,8 @@ export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
 
   reset: () => {
     clearFileStatusesRef?.();
+    // clear local timeline when resetting
+    useLocalTimelineStore.getState().clearLocalTimeline();
     set({
       currentTime: 0,
       isPlaying: false,

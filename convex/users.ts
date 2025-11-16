@@ -4,6 +4,7 @@ import { v, Validator } from "convex/values";
 import { api } from "./_generated/api";
 import { internalAction, internalMutation, mutation, query, QueryCtx } from "./_generated/server";
 import { autumn } from "./autumn";
+import { r2 } from "./r2";
 
 export const current = query({
   args: {},
@@ -190,13 +191,148 @@ export const deleteFromClerk = internalMutation({
   async handler(ctx, { clerkUserId }) {
     const user = await userByExternalId(ctx, clerkUserId);
 
-    if (user !== null) {
-      await ctx.db.delete(user._id);
-    } else {
+    if (user === null) {
       console.warn(
         `Can't delete user, there is none for Clerk user ID: ${clerkUserId}`,
       );
+      return;
     }
+
+    // get all projects owned by this user
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("byOwnerId", (q) => q.eq("ownerId", user._id))
+      .collect();
+
+    // delete all data for each project
+    for (const project of projects) {
+      // delete all assets and their R2 files
+      const assets = await ctx.db
+        .query("assets")
+        .withIndex("byProject", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const asset of assets) {
+        // delete from R2
+        try {
+          await r2.deleteObject(ctx, asset.objectKey);
+        } catch (error) {
+          console.error(`Failed to delete R2 object ${asset.objectKey}:`, error);
+        }
+
+        // delete asset record
+        await ctx.db.delete(asset._id);
+      }
+
+      // delete timeline blocks
+      const timelineBlocks = await ctx.db
+        .query("timeline_blocks")
+        .withIndex("byProject", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const block of timelineBlocks) {
+        await ctx.db.delete(block._id);
+      }
+
+      // delete timeline tracks
+      const timelineTracks = await ctx.db
+        .query("timeline_tracks")
+        .withIndex("byProject", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const track of timelineTracks) {
+        await ctx.db.delete(track._id);
+      }
+
+      // delete timeline edits
+      const timelineEdits = await ctx.db
+        .query("timeline_edits")
+        .withIndex("byProject", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const edit of timelineEdits) {
+        await ctx.db.delete(edit._id);
+      }
+
+      // delete project settings
+      const projectSettings = await ctx.db
+        .query("project_settings")
+        .withIndex("byProject", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const settings of projectSettings) {
+        await ctx.db.delete(settings._id);
+      }
+
+      // delete presence records for this project
+      const presenceRecords = await ctx.db
+        .query("presence")
+        .withIndex("byProject", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const presence of presenceRecords) {
+        await ctx.db.delete(presence._id);
+      }
+
+      // delete notifications related to this project
+      const projectNotifications = await ctx.db
+        .query("notifications")
+        .withIndex("byProject", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const notification of projectNotifications) {
+        await ctx.db.delete(notification._id);
+      }
+
+      // delete the project itself
+      await ctx.db.delete(project._id);
+    }
+
+    // delete notifications where user is sender or receiver
+    const sentNotifications = await ctx.db
+      .query("notifications")
+      .withIndex("byFromUser", (q) => q.eq("fromUserId", user._id))
+      .collect();
+
+    for (const notification of sentNotifications) {
+      await ctx.db.delete(notification._id);
+    }
+
+    const receivedNotifications = await ctx.db
+      .query("notifications")
+      .withIndex("byToUser", (q) => q.eq("toUserId", user._id))
+      .collect();
+
+    for (const notification of receivedNotifications) {
+      await ctx.db.delete(notification._id);
+    }
+
+    // delete any remaining presence records for this user
+    const userPresence = await ctx.db
+      .query("presence")
+      .withIndex("byUser", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const presence of userPresence) {
+      await ctx.db.delete(presence._id);
+    }
+
+    // delete from Autumn - pass customerId in context since we don't have auth
+    try {
+      const autumnResult = await autumn.customers.delete(
+        { ...ctx, customerId: clerkUserId }
+      );
+      if (autumnResult.error) {
+        console.error(`Failed to delete customer from Autumn: ${autumnResult.error.message}`);
+      }
+    } catch (error) {
+      console.error(`Failed to delete customer from Autumn:`, error);
+    }
+
+    // finally, delete the user record
+    await ctx.db.delete(user._id);
+
+    console.log(`Successfully deleted user ${clerkUserId} and all associated data`);
   },
 });
 
