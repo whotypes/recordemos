@@ -15,9 +15,13 @@ export default defineSchema({
   projects: defineTable({
     ownerId: v.id("users"),
     name: v.string(),
+    visibility: v.optional(v.union(v.literal("private"), v.literal("public"))),
+    shareableSlug: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index("byOwnerId", ["ownerId"]),
+  })
+    .index("byOwnerId", ["ownerId"])
+    .index("bySlug", ["shareableSlug"]),
   assets: defineTable({
     ownerId: v.id("users"),
     projectId: v.id("projects"),
@@ -112,4 +116,36 @@ export default defineSchema({
     .searchIndex("search_project", {
       searchField: "projectId",
     }),
+  presence: defineTable({
+    userId: v.id("users"),
+    projectId: v.id("projects"),
+    username: v.string(),
+    userImage: v.string(),
+    lastSeenAt: v.number(),
+    currentBlockId: v.optional(v.id("timeline_blocks")),
+    cursorPosition: v.optional(v.object({
+      x: v.number(),
+      y: v.number(),
+    })),
+    currentTimeMs: v.optional(v.number()),
+    isPlaying: v.optional(v.boolean()),
+  })
+    .index("byProject", ["projectId"])
+    .index("byUser", ["userId"])
+    .index("byProjectAndUser", ["projectId", "userId"]),
+  notifications: defineTable({
+    toUserId: v.id("users"),
+    fromUserId: v.id("users"),
+    projectId: v.id("projects"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("rejected")
+    ),
+    createdAt: v.number(),
+  })
+    .index("byToUser", ["toUserId"])
+    .index("byToUserAndStatus", ["toUserId", "status"])
+    .index("byFromUser", ["fromUserId"])
+    .index("byProject", ["projectId"]),
 });

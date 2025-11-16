@@ -4,6 +4,8 @@ import { PRODUCT_IDS } from "@/lib/autumn/product-ids"
 import { cn } from '@/lib/utils'
 import React from 'react'
 
+import NotificationsToggle from "@/components/notifications-toggle"
+import TeamPresence from "@/components/team-presence"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -37,7 +39,6 @@ import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/tanstack-react-st
 import { Link as RouterLink, useLocation } from "@tanstack/react-router"
 import { useCustomer } from "autumn-js/react"
 import {
-  BellIcon,
   Cloud,
   CloudOff,
   CreditCard,
@@ -45,6 +46,7 @@ import {
   Settings,
   User
 } from "lucide-react"
+import type { Id } from "../../../convex/_generated/dataModel"
 
 type MobileNavProps = {
     nav: {
@@ -256,10 +258,11 @@ const navigationLinks = [
 ]
 
 interface StudioNavbarProps {
-  activeProjectId?: string
+  activeProjectId?: Id<"projects">
+  currentUserId?: Id<"users">
 }
 
-export default function StudioNavbar({ activeProjectId }: StudioNavbarProps = {}) {
+export default function StudioNavbar({ activeProjectId, currentUserId }: StudioNavbarProps = {}) {
   const Link: any = "a"
   const location = useLocation()
 
@@ -283,14 +286,8 @@ export default function StudioNavbar({ activeProjectId }: StudioNavbarProps = {}
         <div className="flex items-center justify-end gap-4 md:flex-1">
           <div className="hidden items-center gap-1.5 sm:flex">
             <CloudUploadToggle />
-            <Link
-              href="#"
-              className={cn(
-                "h-8 w-8 flex items-center justify-center"
-              )}
-            >
-              <BellIcon className="h-4 w-4" />
-            </Link>
+            <TeamPresence projectId={activeProjectId ?? null} currentUserId={currentUserId ?? null} />
+            <NotificationsToggle userId={currentUserId ?? null} />
             <ThemeToggle />
           </div>
           <SignedIn>

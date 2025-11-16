@@ -1,5 +1,6 @@
 import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
 import { BlockData, convexBlockToTimelineBlock } from "@/lib/types/timeline"
+import { useCompositionStore } from "@/lib/composition-store"
 import { useMutation, useQuery } from "convex/react"
 import { useCallback, useEffect, useMemo } from "react"
 import { api } from "../../../convex/_generated/api"
@@ -14,6 +15,7 @@ export const useTimelineBlocks = (
   onVideoBlockDelete?: () => void
 ) => {
   const { setCurrentProjectId } = useTimelineBlocksStore()
+  const { updateBlocks } = useCompositionStore()
 
   useEffect(() => {
     setCurrentProjectId(projectId)
@@ -32,6 +34,7 @@ export const useTimelineBlocks = (
   const createBlock = useMutation(api.timeline_blocks.create)
   const updatePosition = useMutation(api.timeline_blocks.updatePosition)
   const updateSize = useMutation(api.timeline_blocks.updateSize)
+  const updateTrim = useMutation(api.timeline_blocks.updateTrim)
   const removeBlock = useMutation(api.timeline_blocks.remove)
   const duplicateBlock = useMutation(api.timeline_blocks.duplicate)
   const initializeTracks = useMutation(api.timeline_tracks.initializeDefaultTracks)
@@ -61,6 +64,13 @@ export const useTimelineBlocks = (
       initializeTracks({ projectId })
     }
   }, [projectId, tracks, initializeTracks])
+
+  // Update composition store when blocks change
+  useEffect(() => {
+    if (convexBlocks) {
+      updateBlocks(convexBlocks)
+    }
+  }, [convexBlocks, updateBlocks])
 
   const handleBlockDragEnd = useCallback(async (blockId: string, newStart: number) => {
     const block = blocks.find((b) => b.id === blockId)
@@ -176,13 +186,31 @@ export const useTimelineBlocks = (
     })
   }, [projectId, overlayTrack, currentTime, createBlock])
 
+  const handleBlockTrimStart = useCallback((_blockId: string, _side: "left" | "right") => {
+    // Track which side is being trimmed if needed
+  }, [])
+
+  const handleBlockTrimEnd = useCallback(async (blockId: string, trimStartMs: number, trimEndMs: number) => {
+    const block = convexBlocks?.find((b) => b._id === blockId)
+    if (!block) return
+
+    await updateTrim({
+      blockId: blockId as Id<"timeline_blocks">,
+      trimStartMs: Math.round(trimStartMs),
+      trimEndMs: Math.round(trimEndMs),
+    })
+  }, [convexBlocks, updateTrim])
+
   return {
     blocks,
+    convexBlocks,
     handleBlockDragEnd,
     handleBlockResizeStart,
     handleBlockResizeEnd,
     handleBlockDelete,
     handleBlockDuplicate,
     handleAddBlock,
+    handleBlockTrimStart,
+    handleBlockTrimEnd,
   }
 }

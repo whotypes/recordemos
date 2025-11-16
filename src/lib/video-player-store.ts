@@ -40,6 +40,14 @@ interface VideoPlayerState {
   cloudUploadEnabled: boolean;
   setCloudUploadEnabled: (enabled: boolean) => void;
 
+  // upload progress tracking
+  isUploading: boolean;
+  setIsUploading: (uploading: boolean) => void;
+  uploadProgress: number;
+  setUploadProgress: (progress: number) => void;
+  uploadStatus: string | null;
+  setUploadStatus: (status: string | null) => void;
+
   // helper functions
   scrubToTime: (
     time: number,
@@ -81,6 +89,14 @@ export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
   cloudUploadEnabled: true,
   setCloudUploadEnabled: (enabled) => set({ cloudUploadEnabled: enabled }),
 
+  // upload progress tracking
+  isUploading: false,
+  setIsUploading: (uploading) => set({ isUploading: uploading }),
+  uploadProgress: 0,
+  setUploadProgress: (progress) => set({ uploadProgress: progress }),
+  uploadStatus: null,
+  setUploadStatus: (status) => set({ uploadStatus: status }),
+
   scrubToTime: (time, videoRef) => {
     if (videoRef.current) {
       videoRef.current.currentTime = time;
@@ -101,6 +117,9 @@ export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
       loop: false,
       muted: false,
       currentClipAssetId: null,
+      isUploading: false,
+      uploadProgress: 0,
+      uploadStatus: null,
     });
   },
 }));

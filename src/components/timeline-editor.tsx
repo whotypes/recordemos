@@ -70,6 +70,8 @@ export default function TimelineEditor({
     handleBlockDelete,
     handleBlockDuplicate,
     handleAddBlock,
+    handleBlockTrimStart,
+    handleBlockTrimEnd,
   } = useTimelineBlocks(
     projectId,
     videoDuration,
@@ -213,21 +215,23 @@ export default function TimelineEditor({
 
       {hasVideo && (
         <div className="px-4 py-4">
-          <TimelineCanvas
-            blocks={blocks}
-            selectedBlock={selectedBlock}
-            setSelectedBlock={setSelectedBlock}
-            videoDuration={videoDuration}
-            currentTime={currentTime}
-            pixelsPerSecond={pixelsPerSecond}
-            onBlockClick={handleBlockClick}
-            onBlockDragEnd={handleBlockDragEnd}
-            onBlockResizeStart={handleBlockResizeStart}
-            onBlockResizeEnd={handleBlockResizeEnd}
-            onBlockDelete={handleBlockDelete}
-            onBlockDuplicate={handleBlockDuplicate}
-            timelineIndicatorRef={scrubberHook.timelineIndicatorRef}
-          />
+            <TimelineCanvas
+              blocks={blocks}
+              selectedBlock={selectedBlock}
+              setSelectedBlock={setSelectedBlock}
+              videoDuration={videoDuration}
+              currentTime={currentTime}
+              pixelsPerSecond={pixelsPerSecond}
+              onBlockClick={handleBlockClick}
+              onBlockDragEnd={handleBlockDragEnd}
+              onBlockResizeStart={handleBlockResizeStart}
+              onBlockResizeEnd={handleBlockResizeEnd}
+              onBlockDelete={handleBlockDelete}
+              onBlockDuplicate={handleBlockDuplicate}
+              onBlockTrimStart={handleBlockTrimStart}
+              onBlockTrimEnd={handleBlockTrimEnd}
+              timelineIndicatorRef={scrubberHook.timelineIndicatorRef}
+            />
         </div>
       )}
 

@@ -48,13 +48,15 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
     setVideoFileName,
     setVideoFileSize,
     setVideoFileFormat,
+    setIsUploading,
+    setUploadProgress,
+    setUploadStatus,
   } = useVideoPlayerStore();
 
   const uploadFile = useUploadFile(api.assets);
   const insertAssetRow = useMutation(api.assets.insertAssetRow);
   const initializeTimeline = useMutation(api.timeline_helpers.initializeProjectTimeline);
   const initializeSettings = useMutation(api.project_settings.initialize);
-  const [isUploading, setIsUploading] = useState(false);
 
   // verify project exists before we even try to upload
   const projectVerification = useConvexQuery(
@@ -106,11 +108,19 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
     // extract duration and upload
     try {
       setIsUploading(true);
+      setUploadProgress(10);
+      setUploadStatus("Analyzing video...");
 
       const metadata = await extractVideoMetadata(file);
 
+      setUploadProgress(30);
+      setUploadStatus("Uploading to cloud storage...");
+
       // start R2 upload in background
       const objectKey = await uploadFile(file);
+
+      setUploadProgress(70);
+      setUploadStatus("Creating asset record...");
 
       // determine asset type
       const type = file.type.startsWith("video/")
@@ -129,6 +139,9 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
         durationMs: metadata.duration * 1000,
       });
 
+      setUploadProgress(85);
+      setUploadStatus("Initializing timeline...");
+
       // initialize timeline with base video block
       if (type === "video") {
         await initializeTimeline({
@@ -143,8 +156,18 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
         });
       }
 
+      setUploadProgress(100);
+      setUploadStatus("Complete!");
+
       toast.success("Video uploaded successfully");
       options.onUploadComplete?.(assetId);
+
+      // clear upload state after a brief delay
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress(0);
+        setUploadStatus(null);
+      }, 1000);
 
       return { blobUrl, assetId };
     } catch (error) {
@@ -159,16 +182,18 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
         toast.error("Failed to upload video");
       }
 
-      return { blobUrl };
-    } finally {
+      // reset upload state on error
       setIsUploading(false);
+      setUploadProgress(0);
+      setUploadStatus(null);
+
+      return { blobUrl };
     }
   };
 
   return {
     handleVideoUpload,
     uploadVideoFile,
-    isUploading,
     projectVerification,
   };
 };

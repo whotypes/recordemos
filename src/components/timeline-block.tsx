@@ -1,8 +1,10 @@
 "use client"
 
-import { Copy, GripVertical, Trash2 } from "lucide-react"
+import { computeResizeBounds, computeValidGaps, constrainToValidGaps } from "@/lib/timeline-gap-solver"
+import { Copy, GripVertical, Trash2, Scissors } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
+import { useCompositionStore } from "@/lib/composition-store"
 
 interface TimelineBlockProps {
   block: {
@@ -13,12 +15,16 @@ interface TimelineBlockProps {
     duration: number
     color: string
     track?: number
+    trimStart?: number
+    trimEnd?: number
   }
   isSelected: boolean
   onSelect: () => void
   onDragEnd: (blockId: string, newStart: number) => void
   onResizeStart: (blockId: string, side: "left" | "right") => void
   onResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
+  onTrimStart?: (blockId: string, side: "left" | "right") => void
+  onTrimEnd?: (blockId: string, trimStartMs: number, trimEndMs: number) => void
   onDelete: (blockId: string) => void
   onDuplicate: (blockId: string) => void
   onBlockClick?: (blockId: string, timeInBlock: number) => void
@@ -41,15 +47,21 @@ export default function TimelineBlock({
   onDelete,
   onDuplicate,
   onBlockClick,
+  onTrimStart,
+  onTrimEnd,
   totalDuration,
   pixelsPerSecond,
   blocksOnSameTrack = [],
 }: TimelineBlockProps) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
+  const [showTrimHandles, setShowTrimHandles] = useState(false)
   const blockRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
   const isResizingRef = useRef<"left" | "right" | null>(null)
+  const isTrimmingRef = useRef<"left" | "right" | null>(null)
   const rafRef = useRef<number | undefined>(undefined)
+
+  const { updateBlocks } = useCompositionStore()
 
   const startPercent = (block.start / totalDuration) * 100
   const widthPercent = (block.duration / totalDuration) * 100
@@ -90,6 +102,12 @@ export default function TimelineBlock({
     const originalTransition = blockRef.current.style.transition
     blockRef.current.style.transition = "none"
 
+    const validGaps = computeValidGaps(
+      blocksOnSameTrack,
+      totalDuration,
+      block.duration
+    )
+
     let lastLeft = startPercent
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -97,23 +115,15 @@ export default function TimelineBlock({
 
       const deltaX = moveEvent.clientX - startX
       const timeDelta = deltaX / pixelsPerSecond
-      let newStart = Math.max(0, Math.min(totalDuration - block.duration, startPos + timeDelta))
+      const desiredStart = startPos + timeDelta
 
-      const newEnd = newStart + block.duration
+      const newStart = constrainToValidGaps(
+        desiredStart,
+        block.duration,
+        validGaps
+      )
 
-      for (const otherBlock of blocksOnSameTrack) {
-        if (otherBlock.id === block.id) continue
-
-        const otherEnd = otherBlock.start + otherBlock.duration
-
-        if (newStart < otherEnd && newEnd > otherBlock.start) {
-          if (newStart < otherBlock.start) {
-            newStart = Math.max(0, otherBlock.start - block.duration)
-          } else {
-            newStart = otherEnd
-          }
-        }
-      }
+      if (newStart === null) return
 
       const newPercent = (newStart / totalDuration) * 100
       lastLeft = newPercent
@@ -171,6 +181,12 @@ export default function TimelineBlock({
     const originalTransition = blockRef.current.style.transition
     blockRef.current.style.transition = "none"
 
+    const bounds = computeResizeBounds(
+      { id: block.id, start: block.start, duration: block.duration },
+      blocksOnSameTrack,
+      side
+    )
+
     let lastLeft = startPercent
     let lastWidth = widthPercent
 
@@ -181,20 +197,10 @@ export default function TimelineBlock({
       const timeDelta = deltaX / pixelsPerSecond
 
       if (side === "left") {
-        let newStart = Math.max(0, startPos + timeDelta)
-        let newDuration = startDuration - (newStart - startPos)
+        let newStart = startPos + timeDelta
+        newStart = Math.max(bounds.min, Math.min(bounds.max, newStart))
 
-        for (const otherBlock of blocksOnSameTrack) {
-          if (otherBlock.id === block.id) continue
-
-          const otherEnd = otherBlock.start + otherBlock.duration
-
-          if (otherEnd > newStart && otherBlock.start < startPos + startDuration) {
-            newStart = Math.max(newStart, otherEnd)
-            newDuration = startPos + startDuration - newStart
-          }
-        }
-
+        const newDuration = (startPos + startDuration) - newStart
         const clampedDuration = Math.max(0.2, newDuration)
         const clampedStart = startPos + startDuration - clampedDuration
 
@@ -212,19 +218,12 @@ export default function TimelineBlock({
           }
         })
       } else {
-        let newDuration = Math.max(0.2, Math.min(totalDuration - startPos, startDuration + timeDelta))
+        let newEnd = startPos + startDuration + timeDelta
+        newEnd = Math.max(bounds.min, Math.min(bounds.max, newEnd))
 
-        for (const otherBlock of blocksOnSameTrack) {
-          if (otherBlock.id === block.id) continue
-
-          const newEnd = startPos + newDuration
-
-          if (newEnd > otherBlock.start && startPos < otherBlock.start) {
-            newDuration = Math.max(0.2, otherBlock.start - startPos)
-          }
-        }
-
-        const newWidthPercent = (newDuration / totalDuration) * 100
+        const newDuration = newEnd - startPos
+        const clampedDuration = Math.max(0.2, newDuration)
+        const newWidthPercent = (clampedDuration / totalDuration) * 100
 
         lastWidth = newWidthPercent
 
@@ -250,6 +249,69 @@ export default function TimelineBlock({
       document.removeEventListener("pointerup", handlePointerUp)
 
       onResizeEnd(block.id, finalStart, finalDuration)
+    }
+
+    document.addEventListener("pointermove", handlePointerMove)
+    document.addEventListener("pointerup", handlePointerUp)
+  }
+
+  const handleTrimDown = (e: React.PointerEvent, side: "left" | "right") => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (isDraggingRef.current || isResizingRef.current || isTrimmingRef.current || !blockRef.current) return
+
+    isTrimmingRef.current = side
+    onTrimStart?.(block.id, side)
+
+    const startX = e.clientX
+    // Get current trim values from block or default to full duration
+    let currentTrimStartMs = (block.trimStart || 0) * 1000
+    let currentTrimEndMs = (block.trimEnd || block.duration) * 1000
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (!isTrimmingRef.current || !blockRef.current) return
+
+      const deltaX = moveEvent.clientX - startX
+      const timeDelta = deltaX / pixelsPerSecond * 1000 // Convert to ms
+
+      if (side === "left") {
+        // Trimming from the start
+        const newTrimStart = Math.max(0, Math.min(currentTrimEndMs - 100, currentTrimStartMs + timeDelta))
+
+        // Update visual indicator (optional - you could show a trim preview)
+        // For now, we'll just call the callback when done
+      } else {
+        // Trimming from the end
+        const maxTrimEnd = block.duration * 1000
+        const newTrimEnd = Math.max(currentTrimStartMs + 100, Math.min(maxTrimEnd, currentTrimEndMs + timeDelta))
+
+        // Update visual indicator (optional)
+      }
+    }
+
+    const handlePointerUp = () => {
+      if (!isTrimmingRef.current || !blockRef.current) return
+
+      const deltaX = window.event?.clientX ? window.event.clientX - startX : 0
+      const timeDelta = deltaX / pixelsPerSecond * 1000 // Convert to ms
+
+      let finalTrimStart = currentTrimStartMs
+      let finalTrimEnd = currentTrimEndMs
+
+      if (side === "left") {
+        finalTrimStart = Math.max(0, Math.min(currentTrimEndMs - 100, currentTrimStartMs + timeDelta))
+      } else {
+        const maxTrimEnd = block.duration * 1000
+        finalTrimEnd = Math.max(currentTrimStartMs + 100, Math.min(maxTrimEnd, currentTrimEndMs + timeDelta))
+      }
+
+      isTrimmingRef.current = null
+
+      document.removeEventListener("pointermove", handlePointerMove)
+      document.removeEventListener("pointerup", handlePointerUp)
+
+      onTrimEnd?.(block.id, finalTrimStart, finalTrimEnd)
     }
 
     document.addEventListener("pointermove", handlePointerMove)
@@ -296,17 +358,62 @@ export default function TimelineBlock({
           <span className="text-xs font-semibold text-white truncate flex-1 text-center px-1">
             {block.label}
           </span>
+
+          {block.type === "video" && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowTrimHandles(!showTrimHandles)
+              }}
+              className={`text-white/80 hover:text-white transition-colors shrink-0 ${showTrimHandles ? 'text-white' : ''}`}
+              title="Trim video"
+            >
+              <Scissors size={14} strokeWidth={2} />
+            </button>
+          )}
         </div>
 
-        <div
-          onPointerDown={(e) => handleResizeDown(e, "left")}
-          className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 active:bg-white/30"
-        />
+        {/* Regular resize handles */}
+        {!showTrimHandles && (
+          <>
+            <div
+              onPointerDown={(e) => handleResizeDown(e, "left")}
+              className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-all rounded-l-lg"
+              title="Drag to resize"
+            >
+              <div className="absolute inset-y-1 left-1 w-1 bg-foreground/70 hover:bg-foreground rounded-full transition-colors" />
+            </div>
 
-        <div
-          onPointerDown={(e) => handleResizeDown(e, "right")}
-          className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 active:bg-white/30"
-        />
+            <div
+              onPointerDown={(e) => handleResizeDown(e, "right")}
+              className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-all rounded-r-lg"
+              title="Drag to resize"
+            >
+              <div className="absolute inset-y-1 right-1 w-1 bg-foreground/70 hover:bg-foreground rounded-full transition-colors" />
+            </div>
+          </>
+        )}
+
+        {/* Trim handles for video blocks */}
+        {showTrimHandles && block.type === "video" && (
+          <>
+            <div
+              onPointerDown={(e) => handleTrimDown(e, "left")}
+              className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize touch-none bg-primary/20 hover:bg-primary/30 transition-all rounded-l-lg"
+              title="Trim start"
+            >
+              <div className="absolute inset-y-1 left-1 w-1 bg-primary hover:bg-primary/80 rounded-full transition-colors" />
+            </div>
+
+            <div
+              onPointerDown={(e) => handleTrimDown(e, "right")}
+              className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize touch-none bg-primary/20 hover:bg-primary/30 transition-all rounded-r-lg"
+              title="Trim end"
+            >
+              <div className="absolute inset-y-1 right-1 w-1 bg-primary hover:bg-primary/80 rounded-full transition-colors" />
+            </div>
+          </>
+        )}
       </div>
 
       {menuPos && (

@@ -1,23 +1,24 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import type { Id } from "./_generated/dataModel"
+import { hasProjectAccess } from "./auth_helpers"
+import { getCurrentUser } from "./users"
 
 export const list = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to view this project")
+    }
+
     return await ctx.db
       .query("timeline_blocks")
       .withIndex("byProject", (q) => q.eq("projectId", args.projectId))
-      .collect()
-  },
-})
-
-export const listByTrack = query({
-  args: { trackId: v.id("timeline_tracks") },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("timeline_blocks")
-      .withIndex("byTrack", (q) => q.eq("trackId", args.trackId))
       .collect()
   },
 })
@@ -69,6 +70,16 @@ export const create = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     const blockId = await ctx.db.insert("timeline_blocks", {
       projectId: args.projectId,
       trackId: args.trackId,
@@ -107,10 +118,50 @@ export const updatePosition = mutation({
     startMs: v.number(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
     const block = await ctx.db.get(args.blockId)
     if (!block) return
 
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     if (block.startMs === args.startMs) return
+
+    const blocksOnTrack = await ctx.db
+      .query("timeline_blocks")
+      .withIndex("byTrack", (q) => q.eq("trackId", block.trackId))
+      .filter((q) => q.neq(q.field("_id"), args.blockId))
+      .collect()
+
+    const newEndMs = args.startMs + block.durationMs
+
+    for (const other of blocksOnTrack) {
+      const otherEndMs = other.startMs + other.durationMs
+
+      if (args.startMs < otherEndMs && newEndMs > other.startMs) {
+        let adjustedStart = args.startMs < other.startMs
+          ? Math.max(0, other.startMs - block.durationMs)
+          : otherEndMs
+
+        adjustedStart = Math.max(0, adjustedStart)
+
+        await ctx.db.patch(args.blockId, { startMs: adjustedStart })
+
+        await ctx.db.insert("timeline_edits", {
+          projectId: block.projectId,
+          type: "MOVE_BLOCK",
+          payload: { blockId: args.blockId, startMs: adjustedStart },
+          createdAt: Date.now(),
+        })
+        return
+      }
+    }
 
     await ctx.db.patch(args.blockId, {
       startMs: args.startMs,
@@ -132,20 +183,55 @@ export const updateSize = mutation({
     durationMs: v.number(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
     const block = await ctx.db.get(args.blockId)
     if (!block) return
 
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     if (block.startMs === args.startMs && block.durationMs === args.durationMs) return
 
+    const blocksOnTrack = await ctx.db
+      .query("timeline_blocks")
+      .withIndex("byTrack", (q) => q.eq("trackId", block.trackId))
+      .filter((q) => q.neq(q.field("_id"), args.blockId))
+      .collect()
+
+    let adjustedStart = args.startMs
+    let adjustedDuration = Math.max(200, args.durationMs)
+    const newEndMs = adjustedStart + adjustedDuration
+
+    for (const other of blocksOnTrack) {
+      const otherEndMs = other.startMs + other.durationMs
+
+      if (adjustedStart < otherEndMs && newEndMs > other.startMs) {
+        if (adjustedStart < block.startMs) {
+          adjustedStart = Math.max(0, otherEndMs)
+          adjustedDuration = block.startMs + block.durationMs - adjustedStart
+        } else {
+          adjustedDuration = Math.max(200, other.startMs - adjustedStart)
+        }
+      }
+    }
+
+    adjustedDuration = Math.max(200, adjustedDuration)
+
     await ctx.db.patch(args.blockId, {
-      startMs: args.startMs,
-      durationMs: args.durationMs,
+      startMs: adjustedStart,
+      durationMs: adjustedDuration,
     })
 
     await ctx.db.insert("timeline_edits", {
       projectId: block.projectId,
       type: "RESIZE_BLOCK",
-      payload: { blockId: args.blockId, startMs: args.startMs, durationMs: args.durationMs },
+      payload: { blockId: args.blockId, startMs: adjustedStart, durationMs: adjustedDuration },
       createdAt: Date.now(),
     })
   },
@@ -158,8 +244,18 @@ export const updateTrim = mutation({
     trimEndMs: v.number(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
     const block = await ctx.db.get(args.blockId)
     if (!block) return
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
 
     if (block.trimStartMs === args.trimStartMs && block.trimEndMs === args.trimEndMs) return
 
@@ -189,8 +285,18 @@ export const updateTransforms = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
     const block = await ctx.db.get(args.blockId)
     if (!block) return
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
 
     const current = block.transforms
     if (
@@ -230,8 +336,18 @@ export const updateMetadata = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
     const block = await ctx.db.get(args.blockId)
     if (!block) return
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
 
     const current = block.metadata ?? {}
     const newMetadata = args.metadata
@@ -256,8 +372,18 @@ export const updateMetadata = mutation({
 export const remove = mutation({
   args: { blockId: v.id("timeline_blocks") },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
     const block = await ctx.db.get(args.blockId)
     if (!block) return
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
 
     await ctx.db.delete(args.blockId)
 
@@ -276,8 +402,18 @@ export const duplicate = mutation({
     newStartMs: v.number(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
     const block = await ctx.db.get(args.blockId)
     if (!block) throw new Error("Block not found")
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
 
     const newBlockId = await ctx.db.insert("timeline_blocks", {
       projectId: block.projectId,
@@ -316,6 +452,22 @@ export const batchUpdate = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    // verify access for each block's project before updating
+    for (const update of args.updates) {
+      const block = await ctx.db.get(update.blockId)
+      if (block) {
+        const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+        if (!hasAccess) {
+          throw new Error("Not authorized to modify this project")
+        }
+      }
+    }
+
     for (const update of args.updates) {
       const patches: Partial<{
         startMs: number

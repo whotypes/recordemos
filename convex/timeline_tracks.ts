@@ -1,9 +1,21 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
+import { hasProjectAccess } from "./auth_helpers"
+import { getCurrentUser } from "./users"
 
 export const list = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to view this project")
+    }
+
     return await ctx.db
       .query("timeline_tracks")
       .withIndex("byProject", (q) => q.eq("projectId", args.projectId))
@@ -19,6 +31,16 @@ export const create = mutation({
     order: v.number(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     return await ctx.db.insert("timeline_tracks", {
       projectId: args.projectId,
       kind: args.kind,
@@ -30,6 +52,16 @@ export const create = mutation({
 export const initializeDefaultTracks = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, args.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     const existing = await ctx.db
       .query("timeline_tracks")
       .withIndex("byProject", (q) => q.eq("projectId", args.projectId))
@@ -58,7 +90,19 @@ export const initializeDefaultTracks = mutation({
 export const remove = mutation({
   args: { trackId: v.id("timeline_tracks") },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const track = await ctx.db.get(args.trackId)
+    if (!track) return
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, track.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
     await ctx.db.delete(args.trackId)
   },
 })
-

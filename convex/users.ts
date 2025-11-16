@@ -12,6 +12,27 @@ export const current = query({
   },
 });
 
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("users").collect();
+  },
+});
+
+export const search = query({
+  args: { query: v.string() },
+  handler: async (ctx, { query }) => {
+    const lowerQuery = query.toLowerCase();
+    const allUsers = await ctx.db.query("users").collect();
+
+    return allUsers.filter(
+      (user) =>
+        user.username.toLowerCase().includes(lowerQuery) ||
+        user.email.toLowerCase().includes(lowerQuery)
+    );
+  },
+});
+
 export const ensureCurrentUser = mutation({
   args: {},
   handler: async (ctx) => {
