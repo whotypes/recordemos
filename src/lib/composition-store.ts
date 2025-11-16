@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { usePlayheadStore } from "./playhead-store"
 import { TimelineCompiler } from "./timeline-compiler"
+import { useTimelineDurationStore } from "./timeline-duration-store"
 import type { ConvexTimelineBlock } from "./types/timeline"
 
 interface CompositionState {
@@ -50,6 +51,11 @@ export const useCompositionStore = create<CompositionState>((set, get) => ({
     const { compiler } = get()
     if (compiler) {
       compiler.updateBlocks(blocks)
+
+      // Update timeline duration based on blocks
+      const totalDuration = compiler.getTotalDuration()
+      useTimelineDurationStore.getState().setTimelineDuration(totalDuration / 1000)
+
       // Recompute active block with current playhead position to avoid stale data
       const playheadMs = usePlayheadStore.getState().playheadMs
       get().computeActiveBlock(playheadMs)
@@ -82,9 +88,7 @@ export const useCompositionStore = create<CompositionState>((set, get) => ({
         }
       })
     } else {
-      set({
-        activeVideoBlock: null
-      })
+      set({ activeVideoBlock: null })
     }
   },
 

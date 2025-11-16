@@ -131,7 +131,8 @@ export default function TimelineEditor({
   const pixelsPerSecond = getPixelsPerSecond()
 
   const handleBlockClick = (_blockId: string, timeInBlock: number) => {
-    setCurrentTime(Math.max(0, Math.min(videoDuration, timeInBlock)))
+    // allow clicking anywhere on timeline, no clamping to video duration
+    setCurrentTime(Math.max(0, timeInBlock))
   }
 
   const handleAddBlockType = async (type: "crop" | "zoom" | "trim") => {
@@ -232,7 +233,8 @@ export default function TimelineEditor({
       )}
 
       {hasVideo && (
-        <div className="px-4 py-4">
+        <div className="px-4 py-4 overflow-x-auto">
+          <div style={{ minWidth: '100%' }}>
             <TimelineCanvas
               blocks={blocks}
               selectedBlock={selectedBlock}
@@ -250,6 +252,7 @@ export default function TimelineEditor({
               onBlockTrimEnd={handleBlockTrimEnd}
               timelineIndicatorRef={scrubberHook.timelineIndicatorRef}
             />
+          </div>
         </div>
       )}
 
