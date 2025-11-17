@@ -11,7 +11,7 @@ interface TimelineDurationState {
   setTimelineDuration: (duration: number) => void
 
   // get the actual duration to use for rendering
-  // this is max of video duration and timeline duration
+  // this is the edited timeline length
   getEffectiveDuration: () => number
 
   // minimum timeline duration to show (even if no video)
@@ -30,23 +30,16 @@ export const useTimelineDurationStore = create<TimelineDurationState>((set, get)
 
   setVideoDuration: (duration) => {
     set({ videoDuration: duration })
-    // ensure timeline duration is at least the video duration
-    const current = get()
-    if (duration > current.timelineDuration) {
-      set({ timelineDuration: duration })
-    }
   },
 
   setTimelineDuration: (duration) => {
-    const current = get()
-    // timeline duration should be at least the video duration
-    const effectiveDuration = Math.max(duration, current.videoDuration, current.minTimelineDuration)
+    const effectiveDuration = Math.max(duration, DEFAULT_MIN_DURATION)
     set({ timelineDuration: effectiveDuration })
   },
 
   getEffectiveDuration: () => {
-    const { videoDuration, timelineDuration, minTimelineDuration } = get()
-    return Math.max(videoDuration, timelineDuration, minTimelineDuration)
+    const { timelineDuration, minTimelineDuration } = get()
+    return Math.max(timelineDuration, minTimelineDuration)
   },
 
   reset: () => {

@@ -46,8 +46,8 @@ export function HeroTitle() {
       <div className="flex justify-center gap-4 mt-4 md:mt-6">
         <OpenSourceSlider width={textWidth} onChange={() => {}} />
       </div>
-      <p className="mt-8 text-center text-lg font-light text-primary/60 max-w-2xl mx-auto">
-        An intuitive, powerful, and free video editor for everyone. Create stunning videos with professional tools, right from your browser.
+      <p className="mt-8 text-center text-lg font-light text-primary/70 max-w-xl mx-auto">
+        An intuitive, powerful, and open source video editor for your demos. Create stunning presentations all from your browser.
       </p>
     </div>
   );

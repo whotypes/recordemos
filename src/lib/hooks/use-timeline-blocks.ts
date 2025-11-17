@@ -142,6 +142,22 @@ export const useTimelineBlocks = (
     }
   }, [blocks, isLocalMode, updateLocalBlock, updatePosition])
 
+  const handleBlockDragPreview = useCallback((blockId: string, newStart: number) => {
+    const sourceBlocks = isLocalMode ? localBlocks : convexBlocks
+    if (!sourceBlocks) return
+
+    const previewBlocks = sourceBlocks.map((block) =>
+      block._id === (blockId as Id<"timeline_blocks">)
+        ? {
+            ...block,
+            startMs: Math.round(newStart * 1000),
+          }
+        : block
+    )
+
+    updateBlocks(previewBlocks)
+  }, [isLocalMode, localBlocks, convexBlocks, updateBlocks])
+
   const handleBlockResizeStart = useCallback((_blockId: string, _side: "left" | "right") => {
     // track which side is being resized if needed
   }, [])
@@ -186,6 +202,23 @@ export const useTimelineBlocks = (
       })
     }
   }, [blocks, isLocalMode, updateLocalBlock, updateSize])
+
+  const handleBlockResizePreview = useCallback((blockId: string, newStart: number, newDuration: number) => {
+    const sourceBlocks = isLocalMode ? localBlocks : convexBlocks
+    if (!sourceBlocks) return
+
+    const previewBlocks = sourceBlocks.map((block) =>
+      block._id === (blockId as Id<"timeline_blocks">)
+        ? {
+            ...block,
+            startMs: Math.round(newStart * 1000),
+            durationMs: Math.round(newDuration * 1000),
+          }
+        : block
+    )
+
+    updateBlocks(previewBlocks)
+  }, [isLocalMode, localBlocks, convexBlocks, updateBlocks])
 
   const handleBlockDelete = useCallback(async (blockId: string) => {
     const block = blocks.find((b) => b.id === blockId)
@@ -307,8 +340,10 @@ export const useTimelineBlocks = (
   return {
     blocks,
     convexBlocks: isLocalMode ? localBlocks : convexBlocks,
+    handleBlockDragPreview,
     handleBlockDragEnd,
     handleBlockResizeStart,
+    handleBlockResizePreview,
     handleBlockResizeEnd,
     handleBlockDelete,
     handleBlockDuplicate,

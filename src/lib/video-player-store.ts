@@ -64,21 +64,18 @@ export const useVideoPlayerStore = create<VideoPlayerState>((set) => ({
 
   // local blob URL
   videoSrc: null,
-  setVideoSrc: (src) =>
-    set((state) => {
-      const prev = state.videoSrc
-      // schedule revocation of previous blob after switching
-      if (prev && prev.startsWith("blob:") && prev !== src) {
-        setTimeout(() => {
-          try {
-            URL.revokeObjectURL(prev)
-          } catch {
-            // ignore revocation errors
-          }
-        }, 750)
+  setVideoSrc: (src) => {
+    const prev = useVideoPlayerStore.getState().videoSrc
+    // revoke previous blob URL immediately if different
+    if (prev && prev.startsWith("blob:") && prev !== src) {
+      try {
+        URL.revokeObjectURL(prev)
+      } catch {
+        // ignore revocation errors
       }
-      return { videoSrc: src }
-    }),
+    }
+    set({ videoSrc: src })
+  },
 
   // temporary file metadata
   videoFileName: null,

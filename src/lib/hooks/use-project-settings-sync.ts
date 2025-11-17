@@ -53,11 +53,6 @@ export const useProjectSettingsSync = (projectId: Id<"projects"> | null) => {
       clearTimeout(debounceTimer.current)
     }
 
-    // only sync solid colors and standard gradients (not custom images or mesh)
-    const syncableBackground = backgroundType === 'solid' || backgroundType === 'gradient'
-      ? backgroundColor
-      : '#000000'
-
     // debounce the update
     debounceTimer.current = setTimeout(async () => {
       try {
@@ -68,7 +63,7 @@ export const useProjectSettingsSync = (projectId: Id<"projects"> | null) => {
           zoomLevel,
           hideToolbars,
           // background settings
-          backgroundColor: syncableBackground,
+          backgroundColor,
           backgroundType,
           gradientAngle,
           // video transform settings

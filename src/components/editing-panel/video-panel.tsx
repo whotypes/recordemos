@@ -1,6 +1,3 @@
-import { InlineEdit } from "@/components/ui/inline-edit"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,17 +8,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog"
+import { InlineEdit } from "@/components/ui/inline-edit"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useScreenRecorder } from "@/lib/hooks/use-screen-recorder"
 import { useVideoUpload } from "@/lib/hooks/use-video-upload"
-import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
+import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
-import { Plus, RotateCcw, Upload, Video as VideoIcon, Trash2, Loader2 } from "lucide-react"
+import { useMutation } from "convex/react"
+import { Loader2, Plus, RotateCcw, Trash2, Upload, Video as VideoIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { useMutation } from "convex/react"
-import { api } from "convex/_generated/api"
 
 interface VideoPanelProps {
   projectId?: string
@@ -29,9 +28,7 @@ interface VideoPanelProps {
 }
 
 export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
-  const { startScreenRecord, stopScreenRecord, isRecording, recordedVideo, clearRecordedVideo } = useScreenRecorder({
-    projectId: projectId ? (projectId as Id<"projects">) : "guest",
-  })
+  const { startScreenRecord, stopScreenRecord, isRecording, recordedVideo, clearRecordedVideo } = useScreenRecorder()
   const { uploadVideoFile, projectVerification } = useVideoUpload(projectId as Id<"projects"> | undefined)
   const videoSrc = useVideoPlayerStore((state) => state.videoSrc)
   const videoFileName = useVideoPlayerStore((state) => state.videoFileName)
