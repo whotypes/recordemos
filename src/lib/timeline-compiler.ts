@@ -79,7 +79,7 @@ export class TimelineCompiler {
       if (isActive) {
         // Calculate in-asset time for media blocks (video/audio)
         let inAssetTime = 0
-        if (block.blockType === "video" || block.blockType === "audio") {
+        if (block.blockType === "video") {
           // Time within the visible window
           const localOffset = timeMs - visibleStart
           // Map to source video time: start at trimStart, advance by localOffset

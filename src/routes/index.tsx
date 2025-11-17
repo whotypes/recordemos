@@ -17,6 +17,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GradientBackground } from "@/components/ui/sign-in";
 import { cn } from "@/lib/utils";
 import { SignedIn, SignedOut, useAuth, useClerk, useUser } from "@clerk/tanstack-react-start";
 import { convexQuery } from "@convex-dev/react-query";
@@ -226,10 +227,8 @@ function Home() {
 					</SignedOut>
 				</div>
 			</div>
-
-			{/* Content */}
 			<div className="z-10 mx-auto flex w-full max-w-5xl flex-col gap-4 px-6">
-				<div className="z-10 flex h-full w-full flex-col items-center justify-center gap-4 p-12 md:p-24">
+				<div className="z-10 flex h-full w-full flex-col items-center justify-center gap-4 p-12 md:p-2">
 					<a
 						href="https://github.com/whotypes/recordemos"
 						target="_blank"
@@ -267,7 +266,7 @@ function Home() {
 							</Link>
 						</SignedOut>
 						<a
-							href="https://github.com/whotypes/recordemos"
+							href="https://vibeapps.dev/s/recorddemos"
 							target="_blank"
 							rel="noreferrer"
 							className={cn(
@@ -279,11 +278,32 @@ function Home() {
 						</a>
 					</div>
 				</div>
-				<div className="flex w-full flex-col items-center justify-center gap-2">
+				<div className="flex w-full flex-col items-center justify-center gap-2 pt-6 md:pt-12">
 					<h2 className="text-center font-serif text-xl font-light text-primary/60">
-						Built with Vibes™
+						Built using all our favorite tools...
 					</h2>
 					<div className="my-8 flex flex-wrap items-center justify-center gap-10 gap-y-8 lg:gap-14">
+
+						<svg className="size-16 brightness-80 grayscale" viewBox="0 0 256 116" preserveAspectRatio="xMidYMid">
+							<path
+								fill="currentColor"
+								d="m202.357 49.394-5.311-2.124C172.085 103.434 72.786 69.289 66.81 85.997c-.996 11.286 54.227 2.146 93.706 4.059 12.039.583 18.076 9.671 12.964 24.484l10.069.031c11.615-36.209 48.683-17.73 50.232-29.68-2.545-7.857-42.601 0-31.425-35.497Z"
+							/>
+							<path
+								fill="#F4811F"
+								d="M176.332 108.348c1.593-5.31 1.062-10.622-1.593-13.809-2.656-3.187-6.374-5.31-11.154-5.842L71.17 87.634c-.531 0-1.062-.53-1.593-.53-.531-.532-.531-1.063 0-1.594.531-1.062 1.062-1.594 2.124-1.594l92.946-1.062c11.154-.53 22.839-9.56 27.087-20.182l5.312-13.809c0-.532.531-1.063 0-1.594C191.203 20.182 166.772 0 138.091 0 111.535 0 88.697 16.995 80.73 40.896c-5.311-3.718-11.684-5.843-19.12-5.31-12.747 1.061-22.838 11.683-24.432 24.43-.531 3.187 0 6.374.532 9.56C16.996 70.107 0 87.103 0 108.348c0 2.124 0 3.718.531 5.842 0 1.063 1.062 1.594 1.594 1.594h170.489c1.062 0 2.125-.53 2.125-1.594l1.593-5.842Z"
+							/>
+							<path
+								fill="#FAAD3F"
+								d="M205.544 48.863h-2.656c-.531 0-1.062.53-1.593 1.062l-3.718 12.747c-1.593 5.31-1.062 10.623 1.594 13.809 2.655 3.187 6.373 5.31 11.153 5.843l19.652 1.062c.53 0 1.062.53 1.593.53.53.532.53 1.063 0 1.594-.531 1.063-1.062 1.594-2.125 1.594l-20.182 1.062c-11.154.53-22.838 9.56-27.087 20.182l-1.063 4.78c-.531.532 0 1.594 1.063 1.594h70.108c1.062 0 1.593-.531 1.593-1.593 1.062-4.25 2.124-9.03 2.124-13.81 0-27.618-22.838-50.456-50.456-50.456"
+							/>
+						</svg>
+						<svg className="size-10 brightness-80 invert" preserveAspectRatio="xMidYMid" viewBox="0 0 256 227">
+							<path
+								fill="currentColor"
+								d="M148.368 12.403a23.935 23.935 0 0 0-41.003 0L73.64 70.165c52.426 26.174 87.05 78.177 90.975 136.642h-23.679c-3.918-50.113-34.061-94.41-79.238-116.448l-31.213 53.97a81.595 81.595 0 0 1 47.307 62.375h-54.38a3.895 3.895 0 0 1-3.178-5.69l15.069-25.626a55.046 55.046 0 0 0-17.221-9.738L3.167 191.277a23.269 23.269 0 0 0 8.662 31.982 23.884 23.884 0 0 0 11.583 3.075h74.471a99.432 99.432 0 0 0-41.003-88.72l11.84-20.5c35.679 24.504 55.754 66.038 52.79 109.22h63.094c2.99-65.43-29.047-127.512-84.107-162.986l23.935-41.002a3.947 3.947 0 0 1 5.382-1.384c2.716 1.486 103.993 178.208 105.89 180.258a3.895 3.895 0 0 1-3.486 5.792h-24.396c.307 6.526.307 13.035 0 19.528h24.499A23.528 23.528 0 0 0 256 202.91a23.015 23.015 0 0 0-3.178-11.685L148.368 12.403Z"
+							/>
+						</svg>
 						<a
 							target="_blank"
 							rel="noreferrer"
@@ -610,6 +630,7 @@ function Home() {
 						</a>
 					</div>
 				</div>
+
 				<div className="relative z-10 flex flex-col border border-border backdrop-blur-sm lg:flex-row">
 					<div className="flex w-full flex-col items-center justify-center gap-6 border-r border-primary/10 p-10 lg:p-12">
 						<FreePricingCards />
@@ -630,12 +651,12 @@ function Home() {
 
 				<div className="z-10 flex h-full w-full flex-col items-center justify-center gap-6 p-12">
 					<h1 className="text-center text-4xl font-light leading-tight text-primary md:text-6xl">
-						Proudly Open Source
+						RecordDemos
 					</h1>
 					<p className="text-center text-lg font-light text-primary/60">
-						Like Convex, Record Demos is a fully Open Source project.
+						Like Convex, we're a fully Open Source project.
 						<br />
-						The code is available on GitHub.
+						The code is available on GitHub ;)
 					</p>
 					<a
 						href="https://github.com/whotypes/recordemos"
@@ -655,36 +676,10 @@ function Home() {
 					</a>
 				</div>
 			</div>
-
-			{/* Footer */}
-			<footer className="z-10 flex w-full flex-col items-center justify-center gap-8 py-6">
-				<a
-					href="https://twitter.com/notnyuma"
-					target="_blank"
-					rel="noreferrer"
-					className="flex items-center justify-center hover:scale-110"
-				>
-					<svg
-						className="h-8 w-8 text-primary"
-						strokeLinejoin="round"
-						viewBox="0 0 16 16"
-					>
-						<path
-							fillRule="evenodd"
-							clipRule="evenodd"
-							d="M0.5 0.5H5.75L9.48421 5.71053L14 0.5H16L10.3895 6.97368L16.5 15.5H11.25L7.51579 10.2895L3 15.5H1L6.61053 9.02632L0.5 0.5ZM12.0204 14L3.42043 2H4.97957L13.5796 14H12.0204Z"
-							fill="currentColor"
-						/>
-					</svg>
-				</a>
-			</footer>
-
-			{/* Background */}
-			<img
-				src={"/shadow.png"}
-				alt="Hero"
-				className={`fixed left-0 top-0 z-0 h-full w-full opacity-60 dark:invert`}
-			/>
+			<div className="fixed inset-0 z-0">
+				<GradientBackground />
+			</div>
+			<div className="fixed inset-0 z-0 bg-black/70" />
 			<div className="base-grid fixed h-screen w-screen opacity-40" />
 			<div className="fixed bottom-0 h-screen w-screen bg-linear-to-t from-[hsl(var(--card))] to-transparent" />
 

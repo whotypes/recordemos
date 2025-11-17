@@ -9,12 +9,12 @@ import { usePresence } from "@/lib/hooks/use-presence"
 import { usePresenceSync } from "@/lib/hooks/use-presence-sync"
 import { useProjectRestore } from "@/lib/hooks/use-project-restore"
 import { useProjectSettingsSync } from "@/lib/hooks/use-project-settings-sync"
+import { useTimelineBlocks } from "@/lib/hooks/use-timeline-blocks"
 import { useVideoPlayer } from "@/lib/hooks/use-video-player"
 import { usePlayheadStore } from "@/lib/playhead-store"
 import { useTimelineDurationStore } from "@/lib/timeline-duration-store"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
-import { useTimelineBlocks } from "@/lib/hooks/use-timeline-blocks"
 import { useAuth } from "@clerk/tanstack-react-start"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
@@ -109,8 +109,12 @@ function Studio() {
     // derive current time in seconds for display
     const currentTime = playheadMs / 1000
 
-    // get the effective timeline duration (grows dynamically with blocks)
+    // get the effective timeline duration (grows dynamically with blocks) - used for playback logic
     const timelineDuration = getEffectiveDuration()
+
+    // use raw video duration for timeline canvas layout (fixed, doesn't grow)
+    // this keeps the canvas stable when blocks are added/moved/trimmed
+    const rawVideoDuration = videoDuration > 0 ? videoDuration : timelineDuration
 
     // Check if we have a video - either videoSrc is set, or we have metadata/asset ID
     const hasVideo = !!(videoSrc || videoFileName || currentClipAssetId)
@@ -205,7 +209,7 @@ function Studio() {
                                 setIsPlaying={setIsPlaying}
                                 selectedBlock={selectedBlock}
                                 setSelectedBlock={setSelectedBlock}
-                                videoDuration={timelineDuration}
+                                videoDuration={rawVideoDuration}
                                 onVideoBlockDelete={handleVideoBlockDelete}
                             />
                         ) : (

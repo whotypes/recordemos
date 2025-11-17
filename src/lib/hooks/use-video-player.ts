@@ -1,3 +1,4 @@
+import { useCompositionStore } from "@/lib/composition-store"
 import { usePlayheadStore } from "@/lib/playhead-store"
 import { useTimelineDurationStore } from "@/lib/timeline-duration-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
@@ -13,36 +14,43 @@ export const useVideoPlayer = (videoSrc: string | null) => {
 
   const { isPlaying, setIsPlaying, setPlayheadMs } = usePlayheadStore()
 
-  // cleanup when video source changes or component unmounts
+  // handle video source changes - explicitly load video when src changes
   useEffect(() => {
-    return () => {
-    // pause and clear video when src changes
-      if (videoRef.current) {
-        videoRef.current.pause()
-        // remove src to free memory
-        videoRef.current.removeAttribute('src')
-        videoRef.current.load()
-      }
+    if (!videoRef.current) return
+
+    const video = videoRef.current
+
+    // when src changes, explicitly load the video
+    // the src is set via JSX prop, but we need to call load() to ensure it loads
+    if (videoSrc) {
+      // ensure video loads when src changes
+      video.load()
+    } else {
+      // clear video if no src
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
     }
   }, [videoSrc])
 
   // handle metadata to get actual video duration
   useEffect(() => {
-    if (videoRef.current && videoSrc) {
-      const video = videoRef.current
+    if (!videoRef.current || !videoSrc) return
 
-      const handleLoadedMetadata = () => {
-        const duration = video.duration || 0
+    const video = videoRef.current
+
+    const handleLoadedMetadata = () => {
+      const duration = video.duration || 0
+      if (duration > 0) {
         setVideoDuration(duration)
-        // also update timeline duration store
         useTimelineDurationStore.getState().setVideoDuration(duration)
       }
+    }
 
-      video.addEventListener("loadedmetadata", handleLoadedMetadata)
+    video.addEventListener("loadedmetadata", handleLoadedMetadata)
 
-      return () => {
-        video.removeEventListener("loadedmetadata", handleLoadedMetadata)
-      }
+    return () => {
+      video.removeEventListener("loadedmetadata", handleLoadedMetadata)
     }
   }, [videoSrc, setVideoDuration])
 
@@ -57,27 +65,83 @@ export const useVideoPlayer = (videoSrc: string | null) => {
     }
   }, [isPlaying])
 
-  // let video drive playhead during playback - no seeking, smooth playback
+  // let video drive playhead during playback with requestAnimationFrame for smooth updates
+  useEffect(() => {
+    if (!videoRef.current || !videoSrc) return
+
+    const video = videoRef.current
+    let rafId: number | null = null
+
+    const updatePlayhead = () => {
+      if (!videoRef.current) {
+        return
+      }
+
+      if (!isPlaying) {
+        rafId = null
+        return
+      }
+
+      const currentTimeMs = video.currentTime * 1000
+
+      const compiler = useCompositionStore.getState().compiler
+      const maxTimelineMs = compiler ? compiler.getTotalDuration() : 0
+
+      if (maxTimelineMs > 0 && currentTimeMs >= maxTimelineMs) {
+        const epsilonMs = 10
+
+        if (loop && compiler) {
+          const referenceTimeMs = Math.max(0, maxTimelineMs - epsilonMs)
+          const loopBlock = compiler.getActiveVideoBlock(referenceTimeMs)
+
+          if (loopBlock && loopBlock.visibleDuration > 0) {
+            const localOffsetMs = referenceTimeMs - loopBlock.visibleStart
+            const trimStartMs = loopBlock.inAssetTime - localOffsetMs
+            const windowStartMs = loopBlock.visibleStart
+            const windowAssetStartMs = Math.max(0, trimStartMs)
+
+            video.currentTime = windowAssetStartMs / 1000
+            setPlayheadMs(windowStartMs, "playback")
+            rafId = requestAnimationFrame(updatePlayhead)
+            return
+          }
+        }
+
+        const clampedTimeMs = Math.max(0, maxTimelineMs - epsilonMs)
+        const clampedTimeSeconds = clampedTimeMs / 1000
+
+        video.currentTime = clampedTimeSeconds
+        setPlayheadMs(clampedTimeMs, "playback")
+        setIsPlaying(false)
+        video.pause()
+        rafId = null
+        return
+      }
+
+      setPlayheadMs(currentTimeMs, "playback")
+
+      rafId = requestAnimationFrame(updatePlayhead)
+    }
+
+    if (isPlaying) {
+      rafId = requestAnimationFrame(updatePlayhead)
+    }
+
+    return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+    }
+  }, [videoSrc, isPlaying, setPlayheadMs, loop, setIsPlaying])
+
+  // playback lifecycle events (ended, play, pause, error)
   useEffect(() => {
     if (!videoRef.current || !videoSrc) return
 
     const video = videoRef.current
 
-    const handleTimeUpdate = () => {
-      if (isPlaying && video) {
-        // during playback, let video drive the playhead
-        const videoTimeMs = video.currentTime * 1000
-        setPlayheadMs(videoTimeMs, "playback")
-      }
-    }
-
     const handleEnded = () => {
-      if (loop && video) {
-        setPlayheadMs(0, "playback")
-        video.play().catch(() => { })
-      } else {
-        setIsPlaying(false)
-      }
+      setIsPlaying(false)
     }
 
     const handlePlay = () => {
@@ -93,20 +157,18 @@ export const useVideoPlayer = (videoSrc: string | null) => {
       setIsPlaying(false)
     }
 
-    video.addEventListener("timeupdate", handleTimeUpdate)
     video.addEventListener("ended", handleEnded)
     video.addEventListener("play", handlePlay)
     video.addEventListener("pause", handlePause)
     video.addEventListener("error", handleError)
 
     return () => {
-      video.removeEventListener("timeupdate", handleTimeUpdate)
       video.removeEventListener("ended", handleEnded)
       video.removeEventListener("play", handlePlay)
       video.removeEventListener("pause", handlePause)
       video.removeEventListener("error", handleError)
     }
-  }, [videoSrc, setIsPlaying, isPlaying, loop, setPlayheadMs])
+  }, [videoSrc, loop, setIsPlaying, setPlayheadMs])
 
   return {
     videoRef

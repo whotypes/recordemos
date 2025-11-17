@@ -192,7 +192,7 @@ const GlassButton = React.forwardRef<HTMLButtonElement, GlassButtonProps>(
 
 GlassButton.displayName = "GlassButton";
 
-const GradientBackground = () => (
+export const GradientBackground = () => (
 
     <>
 

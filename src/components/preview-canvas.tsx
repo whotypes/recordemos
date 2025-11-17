@@ -57,19 +57,18 @@ export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
     setBackgroundType,
     setImageBackground,
   } = useVideoOptionsStore()
-  const {
-    videoSrc,
-    setVideoSrc,
-    setVideoDuration,
-    setVideoFileName,
-    setVideoFileSize,
-    setVideoFileFormat,
-    muted,
-    isUploading,
-    uploadProgress,
-    uploadStatus,
-    cloudUploadEnabled,
-  } = useVideoPlayerStore()
+  // use selectors for proper reactivity - subscribe to specific state slices
+  const videoSrc = useVideoPlayerStore((state) => state.videoSrc)
+  const setVideoSrc = useVideoPlayerStore((state) => state.setVideoSrc)
+  const setVideoDuration = useVideoPlayerStore((state) => state.setVideoDuration)
+  const setVideoFileName = useVideoPlayerStore((state) => state.setVideoFileName)
+  const setVideoFileSize = useVideoPlayerStore((state) => state.setVideoFileSize)
+  const setVideoFileFormat = useVideoPlayerStore((state) => state.setVideoFileFormat)
+  const muted = useVideoPlayerStore((state) => state.muted)
+  const isUploading = useVideoPlayerStore((state) => state.isUploading)
+  const uploadProgress = useVideoPlayerStore((state) => state.uploadProgress)
+  const uploadStatus = useVideoPlayerStore((state) => state.uploadStatus)
+  const cloudUploadEnabled = useVideoPlayerStore((state) => state.cloudUploadEnabled)
 
   // use store videoSrc directly - it's the source of truth
   const effectiveVideoSrc = videoSrc
@@ -129,8 +128,12 @@ export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
 
       const currentSrc = useVideoPlayerStore.getState().videoSrc
       if (currentSrc && currentSrc.startsWith("blob:")) {
-        // delay revocation to avoid revoking while video is loading
-        setTimeout(() => URL.revokeObjectURL(currentSrc), 500)
+        // revoke previous blob URL immediately
+        try {
+          URL.revokeObjectURL(currentSrc)
+        } catch {
+          // ignore revocation errors
+        }
       }
 
       const url = URL.createObjectURL(file)

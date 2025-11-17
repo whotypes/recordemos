@@ -9,7 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VibeappsRouteImport } from './routes/vibeapps'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as ManifestoRouteImport } from './routes/manifesto'
+import { Route as GithubRouteImport } from './routes/github'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignInSsoCallbackRouteImport } from './routes/sign-in.sso-callback'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
@@ -23,9 +26,24 @@ import { Route as DemoStartSsrSpaModeRouteImport } from './routes/demo/start.ssr
 import { Route as DemoStartSsrFullSsrRouteImport } from './routes/demo/start.ssr.full-ssr'
 import { Route as DemoStartSsrDataOnlyRouteImport } from './routes/demo/start.ssr.data-only'
 
+const VibeappsRoute = VibeappsRouteImport.update({
+  id: '/vibeapps',
+  path: '/vibeapps',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StudioRoute = StudioRouteImport.update({
   id: '/studio',
   path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestoRoute = ManifestoRouteImport.update({
+  id: '/manifesto',
+  path: '/manifesto',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GithubRoute = GithubRouteImport.update({
+  id: '/github',
+  path: '/github',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -91,7 +109,10 @@ const DemoStartSsrDataOnlyRoute = DemoStartSsrDataOnlyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/github': typeof GithubRoute
+  '/manifesto': typeof ManifestoRoute
   '/studio': typeof StudioRoute
+  '/vibeapps': typeof VibeappsRoute
   '/auth/servertest': typeof AuthServertestRoute
   '/auth/test': typeof AuthTestRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -106,7 +127,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/github': typeof GithubRoute
+  '/manifesto': typeof ManifestoRoute
   '/studio': typeof StudioRoute
+  '/vibeapps': typeof VibeappsRoute
   '/auth/servertest': typeof AuthServertestRoute
   '/auth/test': typeof AuthTestRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -122,7 +146,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/github': typeof GithubRoute
+  '/manifesto': typeof ManifestoRoute
   '/studio': typeof StudioRoute
+  '/vibeapps': typeof VibeappsRoute
   '/auth/servertest': typeof AuthServertestRoute
   '/auth/test': typeof AuthTestRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -139,7 +166,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/github'
+    | '/manifesto'
     | '/studio'
+    | '/vibeapps'
     | '/auth/servertest'
     | '/auth/test'
     | '/sign-in/$'
@@ -154,7 +184,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/github'
+    | '/manifesto'
     | '/studio'
+    | '/vibeapps'
     | '/auth/servertest'
     | '/auth/test'
     | '/sign-in/$'
@@ -169,7 +202,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/github'
+    | '/manifesto'
     | '/studio'
+    | '/vibeapps'
     | '/auth/servertest'
     | '/auth/test'
     | '/sign-in/$'
@@ -185,7 +221,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GithubRoute: typeof GithubRoute
+  ManifestoRoute: typeof ManifestoRoute
   StudioRoute: typeof StudioRoute
+  VibeappsRoute: typeof VibeappsRoute
   AuthServertestRoute: typeof AuthServertestRoute
   AuthTestRoute: typeof AuthTestRoute
   SignInSplatRoute: typeof SignInSplatRoute
@@ -201,11 +240,32 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/vibeapps': {
+      id: '/vibeapps'
+      path: '/vibeapps'
+      fullPath: '/vibeapps'
+      preLoaderRoute: typeof VibeappsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/studio': {
       id: '/studio'
       path: '/studio'
       fullPath: '/studio'
       preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifesto': {
+      id: '/manifesto'
+      path: '/manifesto'
+      fullPath: '/manifesto'
+      preLoaderRoute: typeof ManifestoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/github': {
+      id: '/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof GithubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -297,7 +357,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GithubRoute: GithubRoute,
+  ManifestoRoute: ManifestoRoute,
   StudioRoute: StudioRoute,
+  VibeappsRoute: VibeappsRoute,
   AuthServertestRoute: AuthServertestRoute,
   AuthTestRoute: AuthTestRoute,
   SignInSplatRoute: SignInSplatRoute,

@@ -1,5 +1,5 @@
-import { Pause, Play, SkipBack, Repeat, Volume2, VolumeX } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Pause, Play, Repeat, SkipBack, Volume2, VolumeX } from "lucide-react"
 
 interface PlaybackControlsProps {
   hasVideo: boolean

@@ -9,7 +9,6 @@ export const useTimelineScrubber = (
   setIsDraggingTime: (dragging: boolean) => void
 ) => {
   const setPlayheadMs = usePlayheadStore((state) => state.setPlayheadMs)
-  const scrubRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const timelineIndicatorRef = useRef<HTMLDivElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
@@ -19,10 +18,6 @@ export const useTimelineScrubber = (
   useEffect(() => {
     if (!isDraggingTime && videoDuration > 0) {
       const percentage = Math.max(0, Math.min(100, (currentTime / videoDuration) * 100))
-
-      if (scrubRef.current) {
-        scrubRef.current.style.left = `${percentage}%`
-      }
 
       if (progressRef.current) {
         progressRef.current.style.width = `${percentage}%`
@@ -61,9 +56,6 @@ export const useTimelineScrubber = (
     const newTime = percentage * videoDuration
 
     // instantly update all elements
-    if (scrubRef.current) {
-      scrubRef.current.style.left = `${percentage * 100}%`
-    }
     if (progressRef.current) {
       progressRef.current.style.width = `${percentage * 100}%`
       progressRef.current.style.opacity = percentage > 0 ? '1' : '0'
@@ -79,11 +71,6 @@ export const useTimelineScrubber = (
       const x = moveEvent.clientX - rect.left
       const percentage = Math.max(0, Math.min(1, x / rect.width))
       const newTime = percentage * videoDuration
-
-      // instantly move scrubber under cursor
-      if (scrubRef.current) {
-        scrubRef.current.style.left = `${percentage * 100}%`
-      }
 
       // instantly update progress bar width
       if (progressRef.current) {
@@ -112,7 +99,6 @@ export const useTimelineScrubber = (
   }
 
   return {
-    scrubRef,
     progressRef,
     timelineIndicatorRef,
     timelineRef,

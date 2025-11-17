@@ -10,9 +10,11 @@ interface TimelineCanvasProps {
   currentTime: number
   pixelsPerSecond: number
   onBlockClick: (blockId: string, timeInBlock: number) => void
+  onBlockDragPreview?: (blockId: string, newStart: number) => void
   onBlockDragEnd: (blockId: string, newStart: number) => void
   onBlockResizeStart: (blockId: string, side: "left" | "right") => void
   onBlockResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
+  onBlockResizePreview?: (blockId: string, newStart: number, newDuration: number) => void
   onBlockDelete: (blockId: string) => void
   onBlockDuplicate: (blockId: string) => void
   onBlockTrimStart?: (blockId: string, side: "left" | "right") => void
@@ -28,9 +30,11 @@ export default function TimelineCanvas({
   currentTime,
   pixelsPerSecond,
   onBlockClick,
+  onBlockDragPreview,
   onBlockDragEnd,
   onBlockResizeStart,
   onBlockResizeEnd,
+  onBlockResizePreview,
   onBlockDelete,
   onBlockDuplicate,
   onBlockTrimStart,
@@ -93,10 +97,42 @@ export default function TimelineCanvas({
 
   const renderTimeMarkers = () => {
     const markers = []
-    const step = videoDuration > 30 ? 5 : videoDuration > 10 ? 2 : 1
+
+    // adaptive step size based on pixelsPerSecond (which includes zoom)
+    // higher pixelsPerSecond = more zoom = smaller steps (more markers)
+    // estimate container width from pixelsPerSecond and videoDuration
+    const estimatedWidth = pixelsPerSecond * videoDuration
+
+    // target: ~8-12 markers visible, so pixels per marker
+    const targetPixelsPerMarker = estimatedWidth / 10
+
+    // step size in seconds = pixels per marker / pixels per second
+    let step = targetPixelsPerMarker / pixelsPerSecond
+
+    // round to nice values based on step size
+    if (step >= 10) {
+      step = 10
+    } else if (step >= 5) {
+      step = 5
+    } else if (step >= 2) {
+      step = 2
+    } else if (step >= 1) {
+      step = 1
+    } else if (step >= 0.5) {
+      step = 0.5
+    } else if (step >= 0.25) {
+      step = 0.25
+    } else {
+      step = 0.1
+    }
+
+    // ensure step doesn't exceed video duration and is at least 0.1
+    step = Math.max(0.1, Math.min(step, videoDuration))
 
     for (let i = 0; i <= videoDuration; i += step) {
       const percentage = (i / videoDuration) * 100
+      const minutes = Math.floor(i / 60)
+      const seconds = Math.floor(i % 60)
       markers.push(
         <div
           key={i}
@@ -105,7 +141,7 @@ export default function TimelineCanvas({
         >
           <div className="w-px h-2 bg-border/40" />
           <span className="text-[10px] text-muted-foreground/60 font-mono mt-0.5">
-            {i.toFixed(0).padStart(2, '0')}:{((i % 1) * 60).toFixed(0).padStart(2, '0')}
+            {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
           </span>
         </div>
       )
@@ -152,8 +188,10 @@ export default function TimelineCanvas({
                 isSelected={selectedBlock === block.id}
                 onSelect={() => setSelectedBlock(block.id)}
                 onBlockClick={(blockId, timeInBlock) => onBlockClick(blockId, timeInBlock)}
+                onDragPreview={onBlockDragPreview}
                 onDragEnd={onBlockDragEnd}
                 onResizeStart={onBlockResizeStart}
+                onResizePreview={onBlockResizePreview}
                 onResizeEnd={onBlockResizeEnd}
                 onDelete={onBlockDelete}
                 onDuplicate={onBlockDuplicate}
@@ -179,8 +217,10 @@ export default function TimelineCanvas({
                 isSelected={selectedBlock === block.id}
                 onSelect={() => setSelectedBlock(block.id)}
                 onBlockClick={(blockId, timeInBlock) => onBlockClick(blockId, timeInBlock)}
+                onDragPreview={onBlockDragPreview}
                 onDragEnd={onBlockDragEnd}
                 onResizeStart={onBlockResizeStart}
+                onResizePreview={onBlockResizePreview}
                 onResizeEnd={onBlockResizeEnd}
                 onDelete={onBlockDelete}
                 onDuplicate={onBlockDuplicate}

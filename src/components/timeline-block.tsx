@@ -1,11 +1,10 @@
 "use client"
 
+import { usePlayheadStore } from "@/lib/playhead-store"
 import { computeResizeBounds, computeValidGaps, constrainToValidGaps } from "@/lib/timeline-gap-solver"
-import { Copy, GripVertical, Trash2, Scissors } from "lucide-react"
+import { Copy, GripVertical, Scissors, Trash2 } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
-import { useCompositionStore } from "@/lib/composition-store"
-import { usePlayheadStore } from "@/lib/playhead-store"
 
 interface TimelineBlockProps {
   block: {
@@ -21,8 +20,10 @@ interface TimelineBlockProps {
   }
   isSelected: boolean
   onSelect: () => void
+  onDragPreview?: (blockId: string, newStart: number) => void
   onDragEnd: (blockId: string, newStart: number) => void
   onResizeStart: (blockId: string, side: "left" | "right") => void
+  onResizePreview?: (blockId: string, newStart: number, newDuration: number) => void
   onResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
   onTrimStart?: (blockId: string, side: "left" | "right") => void
   onTrimEnd?: (blockId: string, trimStartMs: number, trimEndMs: number) => void
@@ -42,8 +43,10 @@ export default function TimelineBlock({
   block,
   isSelected,
   onSelect,
+  onDragPreview,
   onDragEnd,
   onResizeStart,
+  onResizePreview,
   onResizeEnd,
   onDelete,
   onDuplicate,
@@ -62,7 +65,6 @@ export default function TimelineBlock({
   const isTrimmingRef = useRef<"left" | "right" | null>(null)
   const rafRef = useRef<number | undefined>(undefined)
 
-  const { compiler } = useCompositionStore()
   const { playheadMs, setPlayheadMs } = usePlayheadStore()
 
   const startPercent = (block.start / totalDuration) * 100
@@ -127,13 +129,19 @@ export default function TimelineBlock({
 
       if (newStart === null) return
 
-      const newPercent = (newStart / totalDuration) * 100
-      lastLeft = newPercent
+      // clamp to prevent overflow: ensure block stays within timeline bounds
+      const clampedStart = Math.max(0, Math.min(newStart, totalDuration - block.duration))
+      const clampedPercent = (clampedStart / totalDuration) * 100
+      lastLeft = clampedPercent
+
+      if (onDragPreview) {
+        onDragPreview(block.id, clampedStart)
+      }
 
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => {
         if (blockRef.current) {
-          blockRef.current.style.left = `${newPercent}%`
+          blockRef.current.style.left = `${clampedPercent}%`
         }
       })
     }
@@ -224,11 +232,19 @@ export default function TimelineBlock({
         const clampedDuration = Math.max(0.2, newDuration)
         const clampedStart = startPos + startDuration - clampedDuration
 
-        const newPercent = (clampedStart / totalDuration) * 100
-        const newWidthPercent = (clampedDuration / totalDuration) * 100
+        // clamp to prevent overflow: ensure block stays within timeline bounds
+        const finalStart = Math.max(0, Math.min(clampedStart, totalDuration - clampedDuration))
+        const finalDuration = Math.min(clampedDuration, totalDuration - finalStart)
+
+        const newPercent = (finalStart / totalDuration) * 100
+        const newWidthPercent = (finalDuration / totalDuration) * 100
 
         lastLeft = newPercent
         lastWidth = newWidthPercent
+
+        if (onResizePreview) {
+          onResizePreview(block.id, finalStart, finalDuration)
+        }
 
         if (rafRef.current) cancelAnimationFrame(rafRef.current)
         rafRef.current = requestAnimationFrame(() => {
@@ -243,13 +259,24 @@ export default function TimelineBlock({
 
         const newDuration = newEnd - startPos
         const clampedDuration = Math.max(0.2, newDuration)
-        const newWidthPercent = (clampedDuration / totalDuration) * 100
 
+        // clamp to prevent overflow: ensure block stays within timeline bounds
+        const finalStart = Math.max(0, Math.min(startPos, totalDuration - clampedDuration))
+        const finalDuration = Math.min(clampedDuration, totalDuration - finalStart)
+
+        const newWidthPercent = (finalDuration / totalDuration) * 100
+
+        lastLeft = (finalStart / totalDuration) * 100
         lastWidth = newWidthPercent
+
+        if (onResizePreview) {
+          onResizePreview(block.id, finalStart, finalDuration)
+        }
 
         if (rafRef.current) cancelAnimationFrame(rafRef.current)
         rafRef.current = requestAnimationFrame(() => {
           if (blockRef.current) {
+            blockRef.current.style.left = `${(finalStart / totalDuration) * 100}%`
             blockRef.current.style.width = `${newWidthPercent}%`
           }
         })
@@ -258,7 +285,6 @@ export default function TimelineBlock({
 
     const handlePointerUp = () => {
       if (!isResizingRef.current || !blockRef.current) return
-      const resizeSide = isResizingRef.current
       isResizingRef.current = null
 
       const finalStart = (lastLeft / 100) * totalDuration
@@ -312,7 +338,6 @@ export default function TimelineBlock({
 
     onTrimStart?.(block.id, side)
 
-    const startX = e.clientX
     const blockStartMs = block.start * 1000
     const blockEndMs = (block.start + block.duration) * 1000
     const blockDurationMs = block.duration * 1000
@@ -326,9 +351,6 @@ export default function TimelineBlock({
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       if (!isTrimmingRef.current || !blockRef.current) return
-
-      const deltaX = moveEvent.clientX - startX
-      const timeDeltaMs = (deltaX / pixelsPerSecond) * 1000
 
       // Calculate pointer time in timeline
       const pointerTimeMs = blockStartMs + (moveEvent.clientX - blockRef.current.getBoundingClientRect().left) / pixelsPerSecond * 1000

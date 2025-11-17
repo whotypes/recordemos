@@ -12,15 +12,14 @@ interface RecordedVideo {
 export const useScreenRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
-  const {
-    setVideoSrc,
-    setVideoDuration,
-    setVideoFileName,
-    setVideoFileSize,
-    setVideoFileFormat,
-  } = useVideoPlayerStore();
+  // use getState for setters to avoid unnecessary subscriptions
+  const setVideoSrc = useVideoPlayerStore((state) => state.setVideoSrc);
+  const setVideoFileName = useVideoPlayerStore((state) => state.setVideoFileName);
+  const setVideoFileSize = useVideoPlayerStore((state) => state.setVideoFileSize);
+  const setVideoFileFormat = useVideoPlayerStore((state) => state.setVideoFileFormat);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
 
   const startScreenRecord = async () => {
     try {
@@ -30,6 +29,8 @@ export const useScreenRecorder = () => {
       }
 
       setIsRecording(true);
+      // clear previous chunks
+      chunksRef.current = [];
 
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
@@ -46,11 +47,10 @@ export const useScreenRecorder = () => {
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
-      const chunks: BlobPart[] = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
+        if (event.data && event.data.size > 0) {
+          chunksRef.current.push(event.data);
         }
       };
 
@@ -60,11 +60,10 @@ export const useScreenRecorder = () => {
           URL.revokeObjectURL(currentSrc);
         }
 
-        const blob = new Blob(chunks, { type: mimeType });
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         const url = URL.createObjectURL(blob);
 
         setVideoSrc(url);
-        setVideoDuration(0);
         setIsRecording(false);
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -81,6 +80,7 @@ export const useScreenRecorder = () => {
           fileFormat: "webm",
         });
 
+        chunksRef.current = [];
         mediaRecorderRef.current = null;
         streamRef.current = null;
       };
