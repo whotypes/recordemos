@@ -6,6 +6,10 @@ export const startInstance = createStart(() => {
 		requestMiddleware: [
 			clerkMiddleware({
 				secretKey: process.env.CLERK_SECRET_KEY,
+				authorizedParties: [
+					"https://recorddemos.com",
+					"https://www.recorddemos.com",
+				]
 			}),
 		],
 	};
