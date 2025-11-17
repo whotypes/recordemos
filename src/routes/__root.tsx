@@ -2,6 +2,7 @@ import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { ClerkProvider } from "@clerk/tanstack-react-start";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
+import * as Sentry from "@sentry/tanstackstart-react";
 import {
 	CatchBoundary,
 	createRootRouteWithContext,
@@ -98,6 +99,7 @@ export const Route = createRootRouteWithContext<{
 		}
 	},
 	errorComponent: (props) => {
+		Sentry.captureException(props.error);
 		return (
 			<RootDocument>
 				<CatchBoundary
