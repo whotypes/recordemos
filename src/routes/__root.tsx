@@ -1,8 +1,8 @@
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { ClerkProvider } from "@clerk/tanstack-react-start";
+import * as Sentry from "@sentry/tanstackstart-react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
-import * as Sentry from "@sentry/tanstackstart-react";
 import {
 	CatchBoundary,
 	createRootRouteWithContext,
@@ -50,35 +50,23 @@ export const Route = createRootRouteWithContext<{
 }>()({
 	head: () => ({
 		meta: [
-			{
-				charSet: "utf-8",
-			},
-			{
-				name: "viewport",
-				content: "width=device-width, initial-scale=1",
-			},
-			{
-				name: "description",
-				content:
-					"Tired of that $299 ScreenStudio subscription? Try RecordDemos.com for free!",
-			},
-			{
-				name: "title",
-				content:
-					"RecordDemos.com | Free In-Browser Screen Recording & Screen Capture",
-			},
+			{ charSet: "utf-8" },
+			{ name: "viewport", content: "width=device-width, initial-scale=1" },
+			{ name: "description", content: "An intuitive, powerful, and open source video editor for all your product demos." },
+			{ name: "title", content: "Record Demos | A browser-based video editor" },
+			{ property: 'og:title', content: 'Record Demos | A browser-based video editor' },
+			{ property: 'og:description', content: 'An intuitive, powerful, and open source video editor for all your product demos.' },
+			{ property: 'og:image', content: 'https://recorddemos.com/og.webp' },
+			{ property: 'og:url', content: 'https://recorddemos.com' },
+			{ property: 'og:type', content: 'website' },
+			{ name: 'twitter:card', content: 'summary_large_image' },
+			{ name: 'twitter:title', content: 'Record Demos | A browser-based video editor' },
+			{ name: 'twitter:description', content: 'An intuitive, powerful, and open source video editor for all your product demos.' },
+			{ name: 'twitter:image', content: 'https://recorddemos.com/og.webp' },
 		],
 		links: [
-			{
-				rel: "stylesheet",
-				href: appCss,
-			},
-			{
-				rel: "icon",
-				href: "/rd_logo.png",
-				type: "image/png",
-				sizes: "16x16",
-			},
+			{ rel: "stylesheet", href: appCss },
+			{ rel: "icon", href: "/rd_logo.png", type: "image/png", sizes: "16x16" },
 		],
 	}),
 	shellComponent: RootComponent,
