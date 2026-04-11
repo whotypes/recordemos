@@ -1,31 +1,28 @@
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
-import { ClerkProvider } from "@clerk/tanstack-react-start";
-import * as Sentry from "@sentry/tanstackstart-react";
-import { TanStackDevtools } from "@tanstack/react-devtools";
-import type { QueryClient } from "@tanstack/react-query";
-import {
-	CatchBoundary,
-	createRootRouteWithContext,
-	DefaultGlobalNotFound,
-	HeadContent,
-	Outlet,
-	Scripts,
-	useRouteContext,
-} from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import React from "react";
-
 import { AutumnProviderComponent } from "@/components/autumn/autumn-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { useEnsureUser } from "@/lib/hooks/use-ensure-user";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/tanstack-react-start";
 import { auth } from "@clerk/tanstack-react-start/server";
 import { ConvexQueryClient } from "@convex-dev/react-query";
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import type { QueryClient } from "@tanstack/react-query";
+import {
+    CatchBoundary,
+    createRootRouteWithContext,
+    DefaultGlobalNotFound,
+    HeadContent,
+    Outlet,
+    Scripts,
+    useRouteContext,
+} from "@tanstack/react-router";
+import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createServerFn } from "@tanstack/react-start";
 import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
+import React from "react";
 import appCss from "../styles.css?url";
-
 const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
 	const authResult = await auth()
 
@@ -88,7 +85,6 @@ export const Route = createRootRouteWithContext<{
 		}
 	},
 	errorComponent: (props) => {
-		Sentry.captureException(props.error);
 		return (
 			<RootDocument>
 				<CatchBoundary

@@ -1,5 +1,5 @@
 import { Autumn } from "@useautumn/convex";
-import { components } from "convex/_generated/api";
+import { components } from "./_generated/api";
 
 export const autumn = new Autumn(components.autumn, {
   secretKey: process.env.AUTUMN_SECRET_KEY ?? "",

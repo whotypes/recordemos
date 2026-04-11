@@ -1,9 +1,9 @@
 import { useFrameOptionsStore } from "@/lib/frame-options-store"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
-import { api } from "convex/_generated/api"
-import type { Id } from "convex/_generated/dataModel"
+import type { Id } from "../../../convex/_generated/dataModel"
 import { useMutation } from "convex/react"
 import { useEffect, useRef } from "react"
+import { api } from "../../../convex/_generated/api";
 
 export const useProjectSettingsSync = (projectId: Id<"projects"> | null) => {
   const updateSettings = useMutation(api.project_settings.update)

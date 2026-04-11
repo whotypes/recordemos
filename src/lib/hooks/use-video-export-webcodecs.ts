@@ -1,303 +1,339 @@
-import { useState } from "react"
-import { toast } from "sonner"
-import { useCompositionStore } from "../composition-store"
-import type { ConvexTimelineBlock } from "../types/timeline"
+import { useState } from "react";
+import { toast } from "sonner";
+import { EXPORT_FPS, EXPORT_FPS_BITRATE_BASELINE } from "../export-dimensions";
+import { useCompositionStore } from "../composition-store";
+import type { CompiledBlock } from "../timeline-compiler";
 
 interface ExportProgress {
-  stage: "loading" | "processing" | "encoding" | "complete"
-  progress: number
-  message: string
+	stage: "loading" | "processing" | "encoding" | "complete";
+	progress: number;
+	message: string;
 }
 
 interface ExportOptions {
-  quality: "720" | "1080" | "4k"
-  aspectRatio: string
-  videoSrc: string
-  fileName?: string
-  videoFormat?: string
+	quality: "720" | "1080" | "4k";
+	aspectRatio: string;
+	videoSrc: string;
+	fileName?: string;
+	videoFormat?: string;
 }
+
+const bitrateForExportFps = (base: number) =>
+	Math.round(base * (EXPORT_FPS / EXPORT_FPS_BITRATE_BASELINE));
 
 const getQualitySettings = (quality: "720" | "1080" | "4k") => {
-  switch (quality) {
-    case "720":
-      return {
-        width: 1280,
-        height: 720,
-        bitrate: 2_500_000,
-      }
-    case "1080":
-      return {
-        width: 1920,
-        height: 1080,
-        bitrate: 5_000_000,
-      }
-    case "4k":
-      return {
-        width: 3840,
-        height: 2160,
-        bitrate: 20_000_000,
-      }
-  }
-}
+	switch (quality) {
+		case "720":
+			return {
+				width: 1280,
+				height: 720,
+				bitrate: bitrateForExportFps(2_500_000),
+			};
+		case "1080":
+			return {
+				width: 1920,
+				height: 1080,
+				bitrate: bitrateForExportFps(5_000_000),
+			};
+		case "4k":
+			return {
+				width: 3840,
+				height: 2160,
+				bitrate: bitrateForExportFps(20_000_000),
+			};
+	}
+};
+
+const drawActiveVideo = (
+	ctx: CanvasRenderingContext2D,
+	video: HTMLVideoElement,
+	w: number,
+	h: number,
+	active: CompiledBlock,
+) => {
+	const vw = video.videoWidth;
+	const vh = video.videoHeight;
+	if (!vw || !vh) return;
+
+	const crop = active.cropRect;
+	let sx = 0;
+	let sy = 0;
+	let sw = vw;
+	let sh = vh;
+	if (crop) {
+		sx = (crop.x / 100) * vw;
+		sy = (crop.y / 100) * vh;
+		sw = Math.max(1, (crop.width / 100) * vw);
+		sh = Math.max(1, (crop.height / 100) * vh);
+	}
+
+	// object-contain: fit entire source inside canvas, letterbox the rest
+	const subAspect = sw / sh;
+	const canvasAspect = w / h;
+	let drawW: number;
+	let drawH: number;
+	let ox: number;
+	let oy: number;
+	if (subAspect > canvasAspect) {
+		drawW = w;
+		drawH = w / subAspect;
+		ox = 0;
+		oy = (h - drawH) / 2;
+	} else {
+		drawH = h;
+		drawW = h * subAspect;
+		ox = (w - drawW) / 2;
+		oy = 0;
+	}
+
+	const bt = active.transforms;
+	const originX = ox + drawW / 2;
+	const originY = oy + drawH / 2;
+	ctx.save();
+	ctx.globalAlpha = bt.opacity;
+	ctx.translate(originX, originY);
+	ctx.scale(bt.scale, bt.scale);
+	ctx.translate(bt.x, bt.y);
+	ctx.rotate((bt.rotation * Math.PI) / 180);
+	ctx.translate(-originX, -originY);
+	ctx.drawImage(video, sx, sy, sw, sh, ox, oy, drawW, drawH);
+	ctx.restore();
+};
 
 export const useVideoExportWebCodecs = () => {
-  const [isExporting, setIsExporting] = useState(false)
-  const [exportProgress, setExportProgress] = useState<ExportProgress>({
-    stage: "loading",
-    progress: 0,
-    message: "Initializing...",
-  })
-  const { compiler } = useCompositionStore()
+	const [isExporting, setIsExporting] = useState(false);
+	const [exportProgress, setExportProgress] = useState<ExportProgress>({
+		stage: "loading",
+		progress: 0,
+		message: "Initializing...",
+	});
+	const { compiler } = useCompositionStore();
 
-  const getVideoSegments = (blocks: ConvexTimelineBlock[]) => {
-    const videoBlocks = blocks
-      .filter((b) => b.blockType === "video")
-      .sort((a, b) => a.startMs - b.startMs)
+	const exportVideo = async (options: ExportOptions) => {
+		if (!compiler) {
+			toast.error("No timeline data available");
+			return;
+		}
 
-    const segments: Array<{ start: number; end: number }> = []
+		setIsExporting(true);
 
-    for (const block of videoBlocks) {
-      const trimStart = (block.trimStartMs || 0) / 1000
-      const trimEnd = (block.trimEndMs || 0) / 1000
-      const blockDuration = block.durationMs / 1000
+		try {
+			const qualitySettings = getQualitySettings(options.quality);
+			const totalDurationMs = compiler.getTotalDuration();
 
-      const visibleStart = trimStart
-      const visibleEnd = blockDuration - trimEnd
+			if (totalDurationMs <= 0) {
+				toast.error("Nothing to export (timeline is empty)");
+				setIsExporting(false);
+				return;
+			}
 
-      if (visibleEnd > visibleStart) {
-        segments.push({
-          start: visibleStart,
-          end: visibleEnd,
-        })
-      }
-    }
+			const hasVideoBlocks = compiler
+				.getBlocks()
+				.some((b) => b.blockType === "video");
+			let mediaDurationSec = Number.POSITIVE_INFINITY;
 
-    return segments
-  }
+			setExportProgress({
+				stage: "loading",
+				progress: 10,
+				message: "Loading video file...",
+			});
 
-  const exportVideo = async (options: ExportOptions) => {
-    if (!compiler) {
-      toast.error("No timeline data available")
-      return
-    }
+			let video: HTMLVideoElement | null = null;
 
-    setIsExporting(true)
+			if (hasVideoBlocks) {
+				const response = await fetch(options.videoSrc);
+				const videoBlob = await response.blob();
 
-    try {
-      const blocks = compiler.getBlocks()
-      const qualitySettings = getQualitySettings(options.quality)
-      const segments = getVideoSegments(blocks)
+				video = document.createElement("video");
+				video.src = URL.createObjectURL(videoBlob);
+				video.muted = true;
+				video.playsInline = true;
+				video.preload = "auto";
 
-      if (segments.length === 0) {
-        toast.error("No video segments to export")
-        setIsExporting(false)
-        return
-      }
+				await new Promise<void>((resolve, reject) => {
+					video!.onloadedmetadata = () => {
+						video!.currentTime = 0;
+						resolve();
+					};
+					video!.onerror = reject;
+				});
 
-      setExportProgress({
-        stage: "loading",
-        progress: 10,
-        message: "Loading video file...",
-      })
+				mediaDurationSec =
+					video.duration && !Number.isNaN(video.duration)
+						? video.duration
+						: Number.POSITIVE_INFINITY;
+			}
 
-      // fetch video file
-      let videoBlob: Blob
-      if (options.videoSrc.startsWith("blob:")) {
-        const response = await fetch(options.videoSrc)
-        videoBlob = await response.blob()
-      } else {
-        const response = await fetch(options.videoSrc)
-        videoBlob = await response.blob()
-      }
+			const canvas = document.createElement("canvas");
+			canvas.width = qualitySettings.width;
+			canvas.height = qualitySettings.height;
+			const ctx = canvas.getContext("2d", { willReadFrequently: true });
+			if (!ctx) {
+				throw new Error("Failed to get canvas context");
+			}
 
-      // create video element
-      const video = document.createElement("video")
-      video.src = URL.createObjectURL(videoBlob)
-      video.muted = true
-      video.playsInline = true
-      video.preload = "auto"
+			setExportProgress({
+				stage: "processing",
+				progress: 20,
+				message: "Setting up recording...",
+			});
 
-      await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => {
-          video.currentTime = 0
-          resolve()
-        }
-        video.onerror = reject
-      })
+			const fps = EXPORT_FPS;
+			const stream = canvas.captureStream(fps);
 
-      const duration = video.duration
+			let mimeType = "video/webm;codecs=vp9";
+			if (MediaRecorder.isTypeSupported("video/mp4")) {
+				mimeType = "video/mp4";
+			} else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
+				mimeType = "video/webm;codecs=vp9";
+			} else if (MediaRecorder.isTypeSupported("video/webm")) {
+				mimeType = "video/webm";
+			}
 
-      // create canvas for scaling
-      const canvas = document.createElement("canvas")
-      canvas.width = qualitySettings.width
-      canvas.height = qualitySettings.height
-      const ctx = canvas.getContext("2d", { willReadFrequently: true })
-      if (!ctx) {
-        throw new Error("Failed to get canvas context")
-      }
+			const mediaRecorder = new MediaRecorder(stream, {
+				mimeType,
+				videoBitsPerSecond: qualitySettings.bitrate,
+			});
 
-      setExportProgress({
-        stage: "processing",
-        progress: 20,
-        message: "Setting up recording...",
-      })
+			const recordedChunks: BlobPart[] = [];
+			mediaRecorder.ondataavailable = (event) => {
+				if (event.data.size > 0) {
+					recordedChunks.push(event.data);
+				}
+			};
 
-      // setup MediaRecorder with canvas stream
-      const fps = 30
-      const stream = canvas.captureStream(fps)
+			const totalFrames = Math.max(
+				1,
+				Math.ceil((totalDurationMs / 1000) * fps - 1e-9),
+			);
 
-      // try to use MP4, fallback to WebM
-      let mimeType = "video/webm;codecs=vp9"
-      if (MediaRecorder.isTypeSupported("video/mp4")) {
-        mimeType = "video/mp4"
-      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
-        mimeType = "video/webm;codecs=vp9"
-      } else if (MediaRecorder.isTypeSupported("video/webm")) {
-        mimeType = "video/webm"
-      }
+			setExportProgress({
+				stage: "encoding",
+				progress: 30,
+				message: "Processing video frames...",
+			});
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: qualitySettings.bitrate,
-      })
+			const seekVideo = (el: HTMLVideoElement, seconds: number) =>
+				new Promise<void>((resolve) => {
+					el.currentTime = seconds;
+					const onSeeked = () => {
+						el.removeEventListener("seeked", onSeeked);
+						resolve();
+					};
+					el.addEventListener("seeked", onSeeked);
+				});
 
-      const recordedChunks: BlobPart[] = []
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunks.push(event.data)
-        }
-      }
+			const renderFrame = async (timelineMs: number) => {
+				ctx.fillStyle = "#000000";
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // start recording
-      mediaRecorder.start()
+				const active = compiler.getActiveVideoBlock(timelineMs);
+				if (active && video) {
+					let tSec = active.inAssetTime / 1000;
+					if (Number.isFinite(mediaDurationSec)) {
+						tSec = Math.min(
+							Math.max(0, tSec),
+							Math.max(0, mediaDurationSec - 1e-3),
+						);
+					} else {
+						tSec = Math.max(0, tSec);
+					}
+					await seekVideo(video, tSec);
+					drawActiveVideo(
+						ctx,
+						video,
+						qualitySettings.width,
+						qualitySettings.height,
+						active,
+					);
+				}
+			};
 
-      // calculate total frames for progress
-      let totalFrames = 0
-      for (const segment of segments) {
-        totalFrames += Math.ceil((segment.end - segment.start) * fps)
-      }
+			await renderFrame(0);
+			mediaRecorder.start(100);
 
-      let processedFrames = 0
-      const frameDuration = 1 / fps
+			const frameDelay = () =>
+				new Promise<void>((r) => setTimeout(r, 1000 / fps));
 
-      setExportProgress({
-        stage: "encoding",
-        progress: 30,
-        message: "Processing video frames...",
-      })
+			let processedFrames = 1;
+			for (let i = 1; ; i++) {
+				const timelineMs = (i / fps) * 1000;
+				if (timelineMs >= totalDurationMs) {
+					break;
+				}
+				await frameDelay();
+				await renderFrame(timelineMs);
+				processedFrames++;
 
-      // process each segment
-      for (const segment of segments) {
-        const segmentStart = segment.start
-        const segmentEnd = segment.end
-        const segmentDuration = segmentEnd - segmentStart
+				const progress = 30 + Math.round((processedFrames / totalFrames) * 60);
+				setExportProgress({
+					stage: "encoding",
+					progress: Math.min(90, progress),
+					message: `Processing frame ${processedFrames}/${totalFrames}...`,
+				});
+			}
 
-        // seek to segment start
-        video.currentTime = segmentStart
-        await new Promise<void>((resolve) => {
-          const onSeeked = () => {
-            video.removeEventListener("seeked", onSeeked)
-            resolve()
-          }
-          video.addEventListener("seeked", onSeeked)
-        })
+			mediaRecorder.stop();
 
-        // process frames in this segment
-        let currentTime = segmentStart
-        const endTime = Math.min(segmentStart + segmentDuration, duration)
+			await new Promise<void>((resolve) => {
+				mediaRecorder.onstop = () => resolve();
+			});
 
-        while (currentTime < endTime) {
-          // seek to current frame time
-          video.currentTime = currentTime
+			if (video?.src.startsWith("blob:")) {
+				URL.revokeObjectURL(video.src);
+			}
+			video?.remove();
+			stream.getTracks().forEach((track) => track.stop());
 
-          await new Promise<void>((resolve) => {
-            const onSeeked = () => {
-              video.removeEventListener("seeked", onSeeked)
-              resolve()
-            }
-            video.addEventListener("seeked", onSeeked)
-          })
+			setExportProgress({
+				stage: "complete",
+				progress: 95,
+				message: "Finalizing video...",
+			});
 
-          // draw scaled frame to canvas (this automatically goes to MediaRecorder stream)
-          ctx.drawImage(video, 0, 0, qualitySettings.width, qualitySettings.height)
+			const blob = new Blob(recordedChunks, { type: mimeType });
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.href = url;
+			const extension = mimeType.includes("mp4") ? "mp4" : "webm";
+			const fileName = options.fileName
+				? options.fileName.replace(/\.[^/.]+$/, `.${extension}`)
+				: `export-${options.quality}p-${Date.now()}.${extension}`;
+			link.download = fileName;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			URL.revokeObjectURL(url);
 
-          // wait for next frame
-          await new Promise((resolve) => setTimeout(resolve, 1000 / fps))
+			setExportProgress({
+				stage: "complete",
+				progress: 100,
+				message: "Export complete!",
+			});
 
-          processedFrames++
-          currentTime += frameDuration
+			toast.success("Video exported successfully!");
 
-          // update progress
-          const progress = 30 + Math.round((processedFrames / totalFrames) * 60)
-          setExportProgress({
-            stage: "encoding",
-            progress: Math.min(90, progress),
-            message: `Processing frame ${processedFrames}/${totalFrames}...`,
-          })
-        }
-      }
+			setTimeout(() => {
+				setIsExporting(false);
+			}, 1000);
+		} catch (error) {
+			console.error("Export failed:", error);
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			toast.error(`Export failed: ${errorMessage}`);
+			setIsExporting(false);
+		}
+	};
 
-      // stop recording
-      mediaRecorder.stop()
+	const cancelExport = () => {
+		setIsExporting(false);
+		toast.info("Export cancelled");
+	};
 
-      await new Promise<void>((resolve) => {
-        mediaRecorder.onstop = () => resolve()
-      })
-
-      // cleanup
-      URL.revokeObjectURL(video.src)
-      video.remove()
-      stream.getTracks().forEach((track) => track.stop())
-
-      setExportProgress({
-        stage: "complete",
-        progress: 95,
-        message: "Finalizing video...",
-      })
-
-      // create download
-      const blob = new Blob(recordedChunks, { type: mimeType })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      const extension = mimeType.includes("mp4") ? "mp4" : "webm"
-      const fileName = options.fileName
-        ? options.fileName.replace(/\.[^/.]+$/, `.${extension}`)
-        : `export-${options.quality}p-${Date.now()}.${extension}`
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-
-      setExportProgress({
-        stage: "complete",
-        progress: 100,
-        message: "Export complete!",
-      })
-
-      toast.success("Video exported successfully!")
-
-      setTimeout(() => {
-        setIsExporting(false)
-      }, 1000)
-    } catch (error) {
-      console.error("Export failed:", error)
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      toast.error(`Export failed: ${errorMessage}`)
-      setIsExporting(false)
-    }
-  }
-
-  const cancelExport = () => {
-    setIsExporting(false)
-    toast.info("Export cancelled")
-  }
-
-  return {
-    exportVideo,
-    cancelExport,
-    isExporting,
-    exportProgress,
-  }
-}
+	return {
+		exportVideo,
+		cancelExport,
+		isExporting,
+		exportProgress,
+	};
+};

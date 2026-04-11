@@ -1,3 +1,5 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
@@ -6,10 +8,18 @@ import { nitro } from 'nitro/vite'
 import { defineConfig } from 'vite'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 
+const rootDir = path.dirname(fileURLToPath(import.meta.url))
+
 const config = defineConfig({
   resolve: {
     alias: {
-      cookie: "cookie"
+      cookie: 'cookie',
+      // App-generated Convex bindings live under ./convex; bare "convex" resolves to the npm package.
+      'convex/_generated/api': path.resolve(rootDir, 'convex/_generated/api.js'),
+      'convex/_generated/dataModel': path.resolve(
+        rootDir,
+        'convex/_generated/dataModel.d.ts',
+      ),
     }
   },
   optimizeDeps: {

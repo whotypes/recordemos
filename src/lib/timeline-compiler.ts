@@ -136,11 +136,14 @@ export class TimelineCompiler {
   }
 
   /**
-   * Get the active video block at current time (assumes single video track)
+   * Get the topmost (highest z-index) active video block at the given time.
    */
   getActiveVideoBlock(timeMs: number): CompiledBlock | null {
     const state = this.getStateAt(timeMs)
-    return state.activeBlocks.find(b => b.block.blockType === "video") || null
+    const videos = state.activeBlocks.filter((b) => b.block.blockType === "video")
+    if (videos.length === 0) return null
+    // activeBlocks sorted ascending by zIndex; last video wins for stacking
+    return videos[videos.length - 1] ?? null
   }
 
   /**

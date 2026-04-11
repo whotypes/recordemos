@@ -1,189 +1,183 @@
-import { DEFAULT_UNSPLASH_PHOTO_URLS } from "@/lib/constants"
-import { gradients } from "@/presets/gradients"
-import { create } from "zustand"
+import { DEFAULT_UNSPLASH_PHOTO_URLS } from "@/lib/constants";
+import { gradients } from "@/presets/gradients";
+import { create } from "zustand";
 
 interface VideoOptionsState {
-  // Video transforms
-  scale: number
-  setScale: (scale: number) => void
+	// Video transforms
+	scale: number;
+	setScale: (scale: number) => void;
 
-  translateX: number
-  setTranslateX: (translateX: number) => void
+	translateX: number;
+	setTranslateX: (translateX: number) => void;
 
-  translateY: number
-  setTranslateY: (translateY: number) => void
+	translateY: number;
+	setTranslateY: (translateY: number) => void;
 
-  rotateX: number
-  setRotateX: (rotateX: number) => void
+	rotateX: number;
+	setRotateX: (rotateX: number) => void;
 
-  rotateY: number
-  setRotateY: (rotateY: number) => void
+	rotateY: number;
+	setRotateY: (rotateY: number) => void;
 
-  rotateZ: number
-  setRotateZ: (rotateZ: number) => void
+	rotateZ: number;
+	setRotateZ: (rotateZ: number) => void;
 
-  perspective: number
-  setPerspective: (perspective: number) => void
+	perspective: number;
+	setPerspective: (perspective: number) => void;
 
-  // Background
-  backgroundColor: string
-  setBackgroundColor: (color: string) => void
-  backgroundType: 'solid' | 'gradient' | 'mesh' | 'image'
-  setBackgroundType: (type: 'solid' | 'gradient' | 'mesh' | 'image') => void
-  gradientAngle: number
-  setGradientAngle: (angle: number) => void
-  imageBackground: string | null
-  setImageBackground: (url: string | null) => void
-  highResBackground: boolean
-  setHighResBackground: (highRes: boolean) => void
-  attribution: { name: string; link: string } | null
-  setAttribution: (attribution: { name: string; link: string } | null) => void
+	// Background
+	backgroundColor: string;
+	setBackgroundColor: (color: string) => void;
+	backgroundType: "solid" | "gradient" | "mesh" | "image";
+	setBackgroundType: (type: "solid" | "gradient" | "mesh" | "image") => void;
+	gradientAngle: number;
+	setGradientAngle: (angle: number) => void;
+	imageBackground: string | null;
+	setImageBackground: (url: string | null) => void;
+	highResBackground: boolean;
+	setHighResBackground: (highRes: boolean) => void;
+	attribution: { name: string; link: string } | null;
+	setAttribution: (attribution: { name: string; link: string } | null) => void;
 
-  // UI state
-  activeTabIndex: number
-  setActiveTabIndex: (index: number) => void
+	// UI state
+	activeTabIndex: number;
+	setActiveTabIndex: (index: number) => void;
 
-  // Canvas settings
-  zoomLevel: number
-  setZoomLevel: (level: number) => void
+	// Canvas settings
+	zoomLevel: number;
+	setZoomLevel: (level: number) => void;
 
-  aspectRatio: string
-  setAspectRatio: (ratio: string) => void
+	aspectRatio: string;
+	setAspectRatio: (ratio: string) => void;
 
-  hideToolbars: boolean
-  setHideToolbars: (hide: boolean) => void
+	hideToolbars: boolean;
+	setHideToolbars: (hide: boolean) => void;
 
-  // Editor mode
-  editorMode: 'preview' | 'edit'
-  setEditorMode: (mode: 'preview' | 'edit') => void
+	// Editor mode
+	editorMode: "preview" | "edit";
+	setEditorMode: (mode: "preview" | "edit") => void;
 
-  // Helper functions
-  reset: () => void
+	// Helper functions
+	reset: () => void;
 
-  // Reset transforms to defaults
-  resetTransforms: () => void
+	// Reset transforms to defaults
+	resetTransforms: () => void;
 }
 
 export const useVideoOptionsStore = create<VideoOptionsState>((set) => {
-  // detect theme and set appropriate default background
-  const getDefaultBackground = () => {
-    if (typeof window === 'undefined') {
-      // SSR: return gradient for light mode
-      return gradients[1].gradient
-    }
+	// detect theme and set appropriate default background
+	const getDefaultBackground = () => {
+		if (typeof window === "undefined") {
+			// SSR: return gradient for light mode
+			return gradients[1].gradient;
+		}
 
-    const isDark = document.documentElement.classList.contains('dark')
-    // light mode: use gradient[1], dark mode: use solid dark color
-    return isDark ? 'hsl(240 10% 3.9%)' : gradients[1].gradient
-  }
+		const isDark = document.documentElement.classList.contains("dark");
+		// light mode: use gradient[1], dark mode: use solid dark color
+		return isDark ? "hsl(240 10% 3.9%)" : gradients[1].gradient;
+	};
 
-  const getDefaultBackgroundType = () => {
-    if (typeof window === 'undefined') return 'gradient'
-    const isDark = document.documentElement.classList.contains('dark')
-    // light mode: gradient, dark mode: image
-    return isDark ? 'image' : 'gradient'
-  }
+	const getDefaultBackgroundType = () => {
+		if (typeof window === "undefined") return "gradient";
+		const isDark = document.documentElement.classList.contains("dark");
+		// light mode: gradient, dark mode: image
+		return isDark ? "image" : "gradient";
+	};
 
-  const getDefaultImageBackground = () => {
-    if (typeof window === 'undefined') return null
-    const isDark = document.documentElement.classList.contains('dark')
-    // only set image background in dark mode
-    return isDark ? DEFAULT_UNSPLASH_PHOTO_URLS.regular : null
-  }
+	const getDefaultImageBackground = () => {
+		if (typeof window === "undefined") return null;
+		const isDark = document.documentElement.classList.contains("dark");
+		// only set image background in dark mode
+		return isDark ? DEFAULT_UNSPLASH_PHOTO_URLS.regular : null;
+	};
 
-  // Initialize gradient angle CSS variable
-  if (typeof window !== 'undefined') {
-    document?.documentElement.style.setProperty('--gradient-angle', '170deg')
-  }
+	// Load saved tab index from localStorage
+	const getSavedTabIndex = () => {
+		if (typeof window === "undefined") return 1;
+		const saved = localStorage.getItem("video-options-active-tab-index");
+		if (saved !== null) {
+			const index = parseInt(saved, 10);
+			if (!isNaN(index) && index >= 0) {
+				return index;
+			}
+		}
+		return 1;
+	};
 
-  // Load saved tab index from localStorage
-  const getSavedTabIndex = () => {
-    if (typeof window === 'undefined') return 1
-    const saved = localStorage.getItem('video-options-active-tab-index')
-    if (saved !== null) {
-      const index = parseInt(saved, 10)
-      if (!isNaN(index) && index >= 0) {
-        return index
-      }
-    }
-    return 1
-  }
+	return {
+		// Video transforms - defaults
+		scale: 1,
+		setScale: (scale) => set({ scale }),
 
-  return {
-  // Video transforms - defaults
-  scale: 1,
-  setScale: (scale) => set({ scale }),
+		translateX: 0,
+		setTranslateX: (translateX) => set({ translateX }),
 
-  translateX: 0,
-  setTranslateX: (translateX) => set({ translateX }),
+		translateY: 0,
+		setTranslateY: (translateY) => set({ translateY }),
 
-  translateY: 0,
-  setTranslateY: (translateY) => set({ translateY }),
+		rotateX: 0,
+		setRotateX: (rotateX) => set({ rotateX }),
 
-  rotateX: 0,
-  setRotateX: (rotateX) => set({ rotateX }),
+		rotateY: 0,
+		setRotateY: (rotateY) => set({ rotateY }),
 
-  rotateY: 0,
-  setRotateY: (rotateY) => set({ rotateY }),
+		rotateZ: 0,
+		setRotateZ: (rotateZ) => set({ rotateZ }),
 
-  rotateZ: 0,
-  setRotateZ: (rotateZ) => set({ rotateZ }),
+		perspective: 2000,
+		setPerspective: (perspective) => set({ perspective }),
 
-  perspective: 2000,
-  setPerspective: (perspective) => set({ perspective }),
+		// UI state
+		activeTabIndex: getSavedTabIndex(),
+		setActiveTabIndex: (index) => {
+			if (typeof window !== "undefined") {
+				localStorage.setItem(
+					"video-options-active-tab-index",
+					index.toString(),
+				);
+			}
+			set({ activeTabIndex: index });
+		},
 
-  // UI state
-    activeTabIndex: getSavedTabIndex(),
-    setActiveTabIndex: (index) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('video-options-active-tab-index', index.toString())
-      }
-      set({ activeTabIndex: index })
-    },
+		// Background - theme-aware default (gradient for light mode, image for dark mode)
+		backgroundColor: getDefaultBackground(),
+		setBackgroundColor: (color) => set({ backgroundColor: color }),
+		backgroundType: getDefaultBackgroundType(),
+		setBackgroundType: (type) => set({ backgroundType: type }),
+		gradientAngle: 170,
+		setGradientAngle: (angle) => set({ gradientAngle: angle }),
+		imageBackground: getDefaultImageBackground(),
+		setImageBackground: (url) => set({ imageBackground: url }),
+		highResBackground: false,
+		setHighResBackground: (highRes) => set({ highResBackground: highRes }),
+		attribution: null,
+		setAttribution: (attribution) => set({ attribution }),
 
-    // Background - theme-aware default (gradient for light mode, image for dark mode)
-    backgroundColor: getDefaultBackground(),
-  setBackgroundColor: (color) => set({ backgroundColor: color }),
-    backgroundType: getDefaultBackgroundType(),
-  setBackgroundType: (type) => set({ backgroundType: type }),
-  gradientAngle: 170,
-  setGradientAngle: (angle) => {
-    if (typeof window !== 'undefined') {
-      document?.documentElement.style.setProperty('--gradient-angle', `${angle}deg`)
-    }
-    set({ gradientAngle: angle })
-  },
-    imageBackground: getDefaultImageBackground(),
-    setImageBackground: (url) => set({ imageBackground: url }),
-    highResBackground: false,
-    setHighResBackground: (highRes) => set({ highResBackground: highRes }),
-    attribution: null,
-    setAttribution: (attribution) => set({ attribution }),
+		// Canvas settings - defaults from editor store
+		zoomLevel: 100,
+		setZoomLevel: (level) => set({ zoomLevel: level }),
 
-  // Canvas settings - defaults from editor store
-  zoomLevel: 100,
-  setZoomLevel: (level) => set({ zoomLevel: level }),
+		aspectRatio: "16:9",
+		setAspectRatio: (ratio) => set({ aspectRatio: ratio }),
 
-  aspectRatio: "16:9",
-  setAspectRatio: (ratio) => set({ aspectRatio: ratio }),
+		hideToolbars: false,
+		setHideToolbars: (hide) => set({ hideToolbars: hide }),
 
-  hideToolbars: false,
-  setHideToolbars: (hide) => set({ hideToolbars: hide }),
+		editorMode: "preview" as "preview" | "edit",
+		setEditorMode: (mode) => set({ editorMode: mode }),
 
-    editorMode: 'preview' as 'preview' | 'edit',
-    setEditorMode: (mode) => set({ editorMode: mode }),
+		// Helper functions
+		reset: () => set({}),
 
-  // Helper functions
-    reset: () => set({}),
-
-  resetTransforms: () => set({
-    scale: 1,
-    translateX: 0,
-    translateY: 0,
-    rotateX: 0,
-    rotateY: 0,
-    rotateZ: 0,
-    perspective: 2000,
-  }),
-  }
-})
+		resetTransforms: () =>
+			set({
+				scale: 1,
+				translateX: 0,
+				translateY: 0,
+				rotateX: 0,
+				rotateY: 0,
+				rotateZ: 0,
+				perspective: 2000,
+			}),
+	};
+});

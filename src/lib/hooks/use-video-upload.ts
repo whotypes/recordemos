@@ -10,6 +10,8 @@ import { toast } from "sonner";
 interface UploadOptions {
   projectId: Id<"projects">;
   onUploadComplete?: (assetId: Id<"assets">) => void;
+  /** When set, timeline + storage swap from this asset to the newly uploaded one (cloud projects only). */
+  replacePreviousAssetId?: Id<"assets">;
 }
 
 interface VideoMetadata {
@@ -140,6 +142,7 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
   const uploadFile = useUploadFile(api.assets);
   const insertAssetRow = useMutation(api.assets.insertAssetRow);
   const initializeTimeline = useMutation(api.timeline_helpers.initializeProjectTimeline);
+  const replaceBaseVideo = useMutation(api.timeline_helpers.replaceProjectBaseVideo);
   const initializeSettings = useMutation(api.project_settings.initialize);
 
   // verify project exists before we even try to upload
@@ -183,8 +186,8 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
       // save file metadata
       setVideoFileName(file.name);
       setVideoFileSize(file.size);
-      const format =
-        file.type.split("/")[1] || file.name.split(".").pop() || "unknown";
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      const format = ext || file.type.split("/")[1] || "unknown";
       setVideoFileFormat(format);
 
       // if cloud upload is disabled, initialize local timeline and return blob URL
@@ -251,24 +254,36 @@ export const useVideoUpload = (projectId?: Id<"projects">) => {
       setUploadProgress(85);
       setUploadStatus("Initializing timeline...");
 
-      // initialize timeline with base video block
+      // initialize or replace base video block
       if (type === "video") {
-        await initializeTimeline({
-          projectId: options.projectId,
-          assetId,
-          durationMs: metadata.duration * 1000,
-        });
+        if (options.replacePreviousAssetId) {
+          await replaceBaseVideo({
+            projectId: options.projectId,
+            newAssetId: assetId,
+            durationMs: metadata.duration * 1000,
+            previousAssetId: options.replacePreviousAssetId,
+          });
+        } else {
+          await initializeTimeline({
+            projectId: options.projectId,
+            assetId,
+            durationMs: metadata.duration * 1000,
+          });
 
-        // initialize project settings if not exists
-        await initializeSettings({
-          projectId: options.projectId,
-        });
+          await initializeSettings({
+            projectId: options.projectId,
+          });
+        }
       }
 
       setUploadProgress(100);
       setUploadStatus("Complete!");
 
-      toast.success("Video uploaded successfully");
+      toast.success(
+        options.replacePreviousAssetId
+          ? "Video replaced"
+          : "Video uploaded successfully",
+      );
       options.onUploadComplete?.(assetId);
 
       // clear upload state after a brief delay

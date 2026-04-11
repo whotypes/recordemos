@@ -18,9 +18,10 @@ import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { api } from "convex/_generated/api"
 import type { Id } from "convex/_generated/dataModel"
 import { useMutation } from "convex/react"
-import { Loader2, Plus, RotateCcw, Trash2, Upload, Video as VideoIcon } from "lucide-react"
+import { Loader2, Plus, RefreshCw, RotateCcw, Trash2, Upload, Video as VideoIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import VideoPlaybackControls from "./video-playback-controls"
 
 interface VideoPanelProps {
   projectId?: string
@@ -46,6 +47,7 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
   const setBackgroundType = useVideoOptionsStore((state) => state.setBackgroundType)
   const setGradientAngle = useVideoOptionsStore((state) => state.setGradientAngle)
   const uploadRef = useRef<HTMLInputElement>(null)
+  const replaceRef = useRef<HTMLInputElement>(null)
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -100,6 +102,45 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
     } catch (error) {
       console.error("File upload error:", error)
       // error toasts are already shown by uploadVideoFile
+    } finally {
+      e.target.value = ""
+    }
+  }
+
+  const handleReplaceFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please select a video file")
+      return
+    }
+
+    const replacePreviousAssetId =
+      cloudUploadEnabled && projectId && currentClipAssetId
+        ? currentClipAssetId
+        : undefined
+
+    try {
+      if (!cloudUploadEnabled || !projectId) {
+        await uploadVideoFile(file)
+      } else {
+        if (projectVerification && !projectVerification.valid) {
+          toast.error(projectVerification.error || "Cannot upload to this project")
+          e.target.value = ""
+          return
+        }
+
+        await uploadVideoFile(file, {
+          projectId: projectId as Id<"projects">,
+          replacePreviousAssetId,
+          onUploadComplete: (assetId) => {
+            setCurrentClipAssetId(assetId)
+          },
+        })
+      }
+    } catch (error) {
+      console.error("Replace video error:", error)
     } finally {
       e.target.value = ""
     }
@@ -299,6 +340,46 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
 
         {videoSrc && !isRecording && (
           <>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative flex h-16 col-span-2 flex-col rounded-xl border-2 border-primary/30 p-1 hover:border-primary/60">
+                    <label
+                      htmlFor="video-replace-upload"
+                      className="group flex h-full w-full cursor-pointer items-center justify-center rounded-xl"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          replaceRef.current?.click()
+                        }
+                      }}
+                    >
+                      <div className="flex gap-1.5 items-center justify-center">
+                        <RefreshCw
+                          className="cursor-pointer text-primary/50 group-hover:text-primary/80 shrink-0"
+                          size={16}
+                        />
+                        <p className="text-muted-foreground text-xs">Replace video</p>
+                      </div>
+                    </label>
+                    <input
+                      id="video-replace-upload"
+                      ref={replaceRef}
+                      name="video-replace-upload"
+                      type="file"
+                      onChange={handleReplaceFile}
+                      accept="video/*"
+                      className="sr-only"
+                      tabIndex={-1}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <span>Choose a different video file</span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             {recordedVideo && projectId && (
               <TooltipProvider>
                 <Tooltip>
@@ -381,6 +462,8 @@ export default function VideoPanel({ projectId, onExport }: VideoPanelProps) {
           </>
         )}
       </div>
+
+      <VideoPlaybackControls />
 
       {videoSrc && !isRecording && (
         <div className="space-y-3">

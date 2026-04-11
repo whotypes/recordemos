@@ -1,9 +1,6 @@
-/** biome-ignore-all lint/a11y/noSvgWithoutTitle: <explanation> */
-/** biome-ignore-all lint/correctness/useUniqueElementIds: <explanation> */
-
 import {
-	FreePricingCards,
-	ProPricingCards,
+    FreePricingCards,
+    ProPricingCards,
 } from "@/components/autumn/pricing-cards";
 import { CreateProjectModal } from "@/components/create-project-modal";
 import { HeroTitle } from "@/components/marketing/block";
@@ -11,11 +8,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { GradientBackground } from "@/components/ui/sign-in";
 import { cn } from "@/lib/utils";
@@ -23,11 +20,11 @@ import { SignedIn, SignedOut, useAuth, useClerk, useUser } from "@clerk/tanstack
 import { convexQuery } from "@convex-dev/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { api } from "convex/_generated/api";
 import { useAction } from "convex/react";
 import { User } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { api } from "../../convex/_generated/api";
 
 export const Route = createFileRoute("/")({
 	component: Home,

@@ -13,7 +13,6 @@ Before you begin, ensure you have accounts and API keys for the following servic
 - [Convex](https://convex.dev) - Backend and database
 - [Autumn](https://useautumn.com) - Payment and subscription management
 - [Cloudflare R2](https://www.cloudflare.com/products/r2/) - File storage (@convex/r2)
-- [Sentry](https://sentry.io) - Error monitoring and feedback
 
 ## Getting Started
 

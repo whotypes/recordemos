@@ -153,7 +153,8 @@ export const useProjectRestore = (projectId: Id<"projects"> | null) => {
   ])
 
   return {
-    isRestoring: projectId !== null && hasRestoredRef.current !== projectId,
+    // `projectId != null`: without this, `undefined !== null` made isRestoring true and blocked anonymous studio load.
+    isRestoring: projectId != null && hasRestoredRef.current !== projectId,
     hasVideo: !!primaryVideoAsset,
   }
 }

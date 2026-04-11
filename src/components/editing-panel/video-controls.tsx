@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
 import { useVideoOptionsStore } from "@/lib/video-options-store"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
@@ -152,7 +151,7 @@ export default function VideoControls() {
     rotateZ,
     setRotateZ,
   } = useVideoOptionsStore()
-  const { videoSrc, loop, setLoop, muted, setMuted } = useVideoPlayerStore()
+  const videoSrc = useVideoPlayerStore((state) => state.videoSrc)
 
   const isDisabled = !videoSrc
 
@@ -167,37 +166,6 @@ export default function VideoControls() {
       )}
 
       <div className={isDisabled ? 'pointer-events-none opacity-40' : ''}>
-        {/* Playback Options */}
-        <div className="mb-8">
-        <h3 className="mb-4 text-xs font-medium uppercase text-dark/70">Playback</h3>
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <label htmlFor="loop-checkbox" className="text-sm text-foreground cursor-pointer">
-              Loop video
-            </label>
-            <Checkbox
-              id="loop-checkbox"
-              checked={loop}
-              onCheckedChange={(checked) => setLoop(checked === true)}
-              disabled={isDisabled}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <label htmlFor="mute-checkbox" className="text-sm text-foreground cursor-pointer">
-              Mute audio
-            </label>
-            <Checkbox
-              id="mute-checkbox"
-              checked={muted}
-              onCheckedChange={(checked) => setMuted(checked === true)}
-              disabled={isDisabled}
-            />
-          </div>
-        </div>
-      </div>
-
-      <hr className="my-6" />
-
       {/* Scale */}
       <div className="mb-8">
         <div className="mb-3 flex items-center justify-center">
