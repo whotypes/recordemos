@@ -18,7 +18,7 @@ interface TimelineCanvasProps {
   onBlockDelete: (blockId: string) => void
   onBlockDuplicate: (blockId: string) => void
   onBlockTrimStart?: (blockId: string, side: "left" | "right") => void
-  onBlockTrimEnd?: (blockId: string, trimStartMs: number, trimEndMs: number) => void
+  onBlockTrimEnd?: (blockId: string, trimStartMs: number, trimEndMs: number, newStartMs?: number, newDurationMs?: number) => void
   timelineIndicatorRef: React.RefObject<HTMLDivElement | null>
 }
 
@@ -56,8 +56,10 @@ export default function TimelineCanvas({
     trim: 3,
   }
 
-  const uniqueOverlayTypes = new Set(overlayBlocks.map(b => b.type))
-  const trackCount = uniqueOverlayTypes.size
+  const maxTrackIndex = overlayBlocks.reduce((max, block) => {
+    const track = blockTypeToTrack[block.type] ?? 1
+    return Math.max(max, track)
+  }, 0)
 
   useEffect(
     () => {
@@ -159,7 +161,7 @@ export default function TimelineCanvas({
         onClick={handleTimelineClick}
         className="relative bg-muted/30 rounded-lg border border-border/50 overflow-visible"
         style={{
-          height: `${hasVideo ? 68 + trackCount * 64 : 0}px`,
+          height: `${hasVideo ? 68 + maxTrackIndex * 64 : 0}px`,
           minHeight: hasVideo ? '68px' : '0px'
         }}
       >

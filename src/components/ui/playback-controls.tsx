@@ -1,5 +1,5 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Pause, Play, Repeat, SkipBack, Volume2, VolumeX } from "lucide-react"
+import { Pause, Play, Repeat, Scissors, SkipBack, Volume2, VolumeX } from "lucide-react"
 
 interface PlaybackControlsProps {
   hasVideo: boolean
@@ -9,6 +9,7 @@ interface PlaybackControlsProps {
   loop: boolean
   muted: boolean
   onPlayPause: () => void
+  onSplit: () => void
   onSkipToStart: () => void
   onToggleLoop: () => void
   onToggleMute: () => void
@@ -22,6 +23,7 @@ export default function PlaybackControls({
   loop,
   muted,
   onPlayPause,
+  onSplit,
   onSkipToStart,
   onToggleLoop,
   onToggleMute,
@@ -78,6 +80,22 @@ export default function PlaybackControls({
         </div>
 
         <div className="flex gap-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onSplit}
+                  className="p-1.5 hover:bg-accent rounded transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <Scissors size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>Split block</span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

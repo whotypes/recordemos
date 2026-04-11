@@ -18,6 +18,7 @@ import React from "react";
 import { AutumnProviderComponent } from "@/components/autumn/autumn-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { useEnsureUser } from "@/lib/hooks/use-ensure-user";
 import { auth } from "@clerk/tanstack-react-start/server";
 import { ConvexQueryClient } from "@convex-dev/react-query";
 import { createServerFn } from "@tanstack/react-start";
@@ -111,6 +112,7 @@ function RootComponent() {
 		<ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
 			<ConvexProviderWithClerk client={convexClientForAuth} useAuth={useClerkAuth}>
 				<AutumnProviderComponent>
+					<UserEnsurer />
 					<RootDocument>
 						<Outlet />
 					</RootDocument>
@@ -118,6 +120,11 @@ function RootComponent() {
 			</ConvexProviderWithClerk>
 		</ClerkProvider>
 	)
+}
+
+function UserEnsurer() {
+	useEnsureUser()
+	return null
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {

@@ -1,8 +1,8 @@
-import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
-import { useLocalTimelineStore } from "@/lib/local-timeline-store"
-import { useVideoPlayerStore } from "@/lib/video-player-store"
-import { BlockData, convexBlockToTimelineBlock } from "@/lib/types/timeline"
 import { useCompositionStore } from "@/lib/composition-store"
+import { useLocalTimelineStore } from "@/lib/local-timeline-store"
+import { useTimelineBlocksStore } from "@/lib/timeline-blocks-store"
+import { BlockData, convexBlockToTimelineBlock } from "@/lib/types/timeline"
+import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { useMutation, useQuery } from "convex/react"
 import { useCallback, useEffect, useMemo } from "react"
 import { api } from "../../../convex/_generated/api"
@@ -10,7 +10,7 @@ import type { Id } from "../../../convex/_generated/dataModel"
 
 export const useTimelineBlocks = (
   projectId: Id<"projects"> | null,
-  videoDuration: number,
+  _videoDuration: number,
   currentTime: number,
   selectedBlock: string | null,
   setSelectedBlock: (id: string | null) => void,
@@ -267,7 +267,7 @@ export const useTimelineBlocks = (
 
     if (isLocalMode) {
       addLocalBlock({
-        trackId: overlayTrack.id as Id<"timeline_tracks">,
+        trackId: (overlayTrack as any).id || (overlayTrack as any)._id,
         blockType: blockData.type,
         startMs: Math.round(Math.max(0, currentTime) * 1000),
         durationMs: Math.round(1.5 * 1000),
@@ -290,12 +290,13 @@ export const useTimelineBlocks = (
           cropW: blockData.cropW,
           cropH: blockData.cropH,
         },
+        createdAt: Date.now(),
       })
     } else {
       if (!projectId) return
       await createBlock({
         projectId,
-        trackId: overlayTrack._id as Id<"timeline_tracks">,
+        trackId: (overlayTrack as any)._id || (overlayTrack as any).id,
         blockType: blockData.type,
         startMs: Math.round(Math.max(0, currentTime) * 1000),
         durationMs: Math.round(1.5 * 1000),
@@ -316,15 +317,20 @@ export const useTimelineBlocks = (
     // Track which side is being trimmed if needed
   }, [])
 
-  const handleBlockTrimEnd = useCallback(async (blockId: string, trimStartMs: number, trimEndMs: number) => {
+  const handleBlockTrimEnd = useCallback(async (blockId: string, trimStartMs: number, trimEndMs: number, newStartMs?: number, newDurationMs?: number) => {
     if (isLocalMode) {
       const block = localBlocks.find((b) => b._id === blockId)
       if (!block) return
 
-      updateLocalBlock(blockId, {
+      const updates: any = {
         trimStartMs: Math.round(trimStartMs),
         trimEndMs: Math.round(trimEndMs),
-      })
+      }
+
+      if (newStartMs !== undefined) updates.startMs = Math.round(newStartMs)
+      if (newDurationMs !== undefined) updates.durationMs = Math.round(newDurationMs)
+
+      updateLocalBlock(blockId, updates)
     } else {
       const block = convexBlocks?.find((b) => b._id === blockId)
       if (!block) return
@@ -333,9 +339,59 @@ export const useTimelineBlocks = (
         blockId: blockId as Id<"timeline_blocks">,
         trimStartMs: Math.round(trimStartMs),
         trimEndMs: Math.round(trimEndMs),
+        startMs: newStartMs !== undefined ? Math.round(newStartMs) : undefined,
+        durationMs: newDurationMs !== undefined ? Math.round(newDurationMs) : undefined,
       })
     }
   }, [isLocalMode, localBlocks, convexBlocks, updateLocalBlock, updateTrim])
+
+  const splitBlock = useMutation(api.timeline_blocks.split)
+
+  const handleBlockSplit = useCallback(async (blockId: string, splitTimeMs: number) => {
+    if (isLocalMode) {
+      const block = localBlocks.find((b) => b._id === blockId)
+      if (!block) return
+
+      const blockStart = block.startMs
+      const blockEnd = block.startMs + block.durationMs
+
+      if (splitTimeMs <= blockStart || splitTimeMs >= blockEnd) {
+        console.warn("Split time must be within block boundaries")
+        return
+      }
+
+      // 1. Update original block duration
+      const firstPartDuration = splitTimeMs - blockStart
+      updateLocalBlock(blockId, {
+        durationMs: Math.round(firstPartDuration),
+      })
+
+      // 2. Create new block for the second part
+      const secondPartDuration = block.durationMs - firstPartDuration
+      const timeOffset = splitTimeMs - blockStart
+
+      // For video blocks, we need to adjust trimStart to maintain continuity
+      const newTrimStart = (block.trimStartMs || 0) + timeOffset
+
+      addLocalBlock({
+        trackId: block.trackId,
+        blockType: block.blockType,
+        startMs: Math.round(splitTimeMs),
+        durationMs: Math.round(secondPartDuration),
+        trimStartMs: Math.round(newTrimStart),
+        trimEndMs: block.trimEndMs,
+        zIndex: block.zIndex,
+        transforms: { ...block.transforms },
+        metadata: { ...block.metadata },
+        createdAt: Date.now(),
+      })
+    } else {
+      await splitBlock({
+        blockId: blockId as Id<"timeline_blocks">,
+        splitTimeMs: Math.round(splitTimeMs),
+      })
+    }
+  }, [isLocalMode, localBlocks, updateLocalBlock, addLocalBlock, splitBlock])
 
   return {
     blocks,
@@ -350,5 +406,6 @@ export const useTimelineBlocks = (
     handleAddBlock,
     handleBlockTrimStart,
     handleBlockTrimEnd,
+    handleBlockSplit,
   }
 }

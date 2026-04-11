@@ -50,7 +50,7 @@ function Home() {
 	const [createModalOpen, setCreateModalOpen] = useState(false);
 	const [isCreating, setIsCreating] = useState(false);
 
-	const { data: convexProjects } = useQuery({
+	const { data: convexProjects, isLoading: isProjectsLoading } = useQuery({
 		...convexQuery(api.projects.listForCurrentUser, {}),
 		enabled: isAuthLoaded && isSignedIn && !!user,
 	});
@@ -69,6 +69,8 @@ function Home() {
 			navigate({ to: "/sign-in/$" });
 			return;
 		}
+
+		if (isProjectsLoading) return;
 
 		const projects = Array.isArray(convexProjects) ? convexProjects : [];
 
@@ -215,7 +217,7 @@ function Home() {
 							type="button"
 							onClick={handleGetStarted}
 							className={buttonVariants({ size: "sm" })}
-							disabled={isCreating}
+							disabled={isCreating || isProjectsLoading}
 						>
 							{isCreating ? "Creating..." : "Get Started"}
 						</button>
@@ -252,7 +254,7 @@ function Home() {
 								type="button"
 								onClick={handleGetStarted}
 								className={cn(buttonVariants({ size: "sm" }), "hidden sm:flex")}
-								disabled={isCreating}
+								disabled={isCreating || isProjectsLoading}
 							>
 								{isCreating ? "Creating..." : "Get Started"}
 							</button>
@@ -265,17 +267,15 @@ function Home() {
 								Get Started
 							</Link>
 						</SignedOut>
-						<a
-							href="https://vibeapps.dev/s/recorddemos"
-							target="_blank"
-							rel="noreferrer"
+						<Link
+							to="/manifesto"
 							className={cn(
 								buttonVariants({ size: "sm", variant: "outline" }),
 								"hidden dark:bg-secondary dark:hover:opacity-80 sm:flex",
 							)}
 						>
-							Record Demos on VibeApps
-						</a>
+							Manifesto
+						</Link>
 					</div>
 				</div>
 				<div className="flex w-full flex-col items-center justify-center gap-2 pt-6 md:pt-12">

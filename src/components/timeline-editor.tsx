@@ -9,7 +9,7 @@ import { useTimelineBlocks } from "@/lib/hooks/use-timeline-blocks"
 import { useTimelineScrubber } from "@/lib/hooks/use-timeline-scrubber"
 import { BlockData } from "@/lib/types/timeline"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
-import { Move, Plus, Scissors, ZoomIn } from "lucide-react"
+import { Move, Plus, ZoomIn } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { Id } from "../../convex/_generated/dataModel"
 
@@ -39,13 +39,6 @@ const BLOCK_TYPES = [
     icon: ZoomIn,
     description: "Zoom In",
     color: "bg-primary"
-  },
-  {
-    id: "trim",
-    label: "Trim",
-    icon: Scissors,
-    description: "Cut segment",
-    color: "bg-destructive"
   },
 ]
 
@@ -83,6 +76,7 @@ export default function TimelineEditor({
     handleAddBlock,
     handleBlockTrimStart,
     handleBlockTrimEnd,
+    handleBlockSplit,
   } = useTimelineBlocks(
     projectId,
     videoDuration,
@@ -218,6 +212,16 @@ export default function TimelineEditor({
             loop={loop}
             muted={muted}
             onPlayPause={handlePlayPause}
+            onSplit={() => {
+              const splitTimeMs = Math.round(currentTime * 1000)
+
+              if (selectedBlock) {
+                handleBlockSplit(selectedBlock, splitTimeMs)
+              } else if (activeVideoBlock) {
+                // If no block selected, try to split the active block under playhead
+                handleBlockSplit(activeVideoBlock.blockId, splitTimeMs)
+              }
+            }}
             onSkipToStart={() => {
               if (hasActiveWindow) {
                 setCurrentTime(windowStartSeconds)

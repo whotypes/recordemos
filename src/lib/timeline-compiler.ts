@@ -42,23 +42,19 @@ export class TimelineCompiler {
 
   /**
    * Calculate visible window for a block
-   * visibleStart = block.start + block.trimStart
-   * visibleEnd = block.end - block.trimEnd
-   * visibleDuration = visibleEnd - visibleStart
+   * In Standard Model:
+   * visibleStart = block.startMs
+   * visibleEnd = block.startMs + block.durationMs
+   * visibleDuration = block.durationMs
    */
   private getVisibleWindow(block: ConvexTimelineBlock): {
     visibleStart: number
     visibleEnd: number
     visibleDuration: number
   } {
-    const blockStart = block.startMs
-    const blockEnd = block.startMs + block.durationMs
-    const trimStart = block.trimStartMs || 0
-    const trimEnd = block.trimEndMs || 0
-
-    const visibleStart = blockStart + trimStart
-    const visibleEnd = blockEnd - trimEnd
-    const visibleDuration = Math.max(0, visibleEnd - visibleStart)
+    const visibleStart = block.startMs
+    const visibleDuration = block.durationMs
+    const visibleEnd = visibleStart + visibleDuration
 
     return { visibleStart, visibleEnd, visibleDuration }
   }
@@ -71,7 +67,7 @@ export class TimelineCompiler {
     const trackLayers = new Map<string, CompiledBlock[]>()
 
     for (const block of this.blocks) {
-      const { visibleStart, visibleEnd, visibleDuration } = this.getVisibleWindow(block)
+      const { visibleStart, visibleEnd } = this.getVisibleWindow(block)
 
       // Block is active if timeline time is within the visible window
       const isActive = timeMs >= visibleStart && timeMs < visibleEnd
@@ -85,9 +81,8 @@ export class TimelineCompiler {
           // Map to source video time: start at trimStart, advance by localOffset
           inAssetTime = (block.trimStartMs || 0) + localOffset
 
-          // Clamp to ensure we don't exceed the source video bounds
-          const maxSourceTime = block.durationMs
-          inAssetTime = Math.min(inAssetTime, maxSourceTime)
+          // No clamping needed if duration is managed correctly, but safe to keep
+          // const maxSourceTime = ... (we don't track source duration here easily without asset metadata)
         }
 
         const { visibleDuration } = this.getVisibleWindow(block)
@@ -146,6 +141,47 @@ export class TimelineCompiler {
   getActiveVideoBlock(timeMs: number): CompiledBlock | null {
     const state = this.getStateAt(timeMs)
     return state.activeBlocks.find(b => b.block.blockType === "video") || null
+  }
+
+  /**
+   * Get the next video block that starts after the given time
+   * Used for gap skipping during playback
+   */
+  getNextVideoBlock(timeMs: number): CompiledBlock | null {
+    const videoBlocks = this.blocks.filter(b => b.blockType === "video")
+
+    // Find blocks that start after the current time
+    const nextBlocks = videoBlocks.filter(b => {
+      const { visibleStart } = this.getVisibleWindow(b)
+      return visibleStart > timeMs
+    })
+
+    if (nextBlocks.length === 0) return null
+
+    // Sort by start time to find the immediate next one
+    nextBlocks.sort((a, b) => {
+      const startA = this.getVisibleWindow(a).visibleStart
+      const startB = this.getVisibleWindow(b).visibleStart
+      return startA - startB
+    })
+
+    const nextBlock = nextBlocks[0]
+    const { visibleStart, visibleEnd, visibleDuration } = this.getVisibleWindow(nextBlock)
+
+    // We calculate inAssetTime for the start of the block
+    // At start of block, inAssetTime = trimStart
+    const inAssetTime = nextBlock.trimStartMs || 0
+
+    return {
+      block: nextBlock,
+      isActive: false, // Not active yet
+      inAssetTime,
+      visibleStart,
+      visibleEnd,
+      visibleDuration,
+      transforms: { ...nextBlock.transforms },
+      cropRect: undefined // Simplified for now
+    }
   }
 
   /**

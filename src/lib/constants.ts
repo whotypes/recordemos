@@ -5,3 +5,4 @@ export const DEFAULT_UNSPLASH_PHOTO_URLS = {
   full: `https://images.unsplash.com/photo-${DEFAULT_UNSPLASH_PHOTO_ID}?w=2400&q=80`,
   small: `https://images.unsplash.com/photo-${DEFAULT_UNSPLASH_PHOTO_ID}?w=400&q=80`,
 }
+

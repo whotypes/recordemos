@@ -348,7 +348,7 @@ export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
                   ...borderRadiusStyles,
                 } : borderRadiusStyles}
               >
-                <div className="w-full h-full" style={videoTransforms}>
+                <div className="w-full h-full" style={{ ...videoTransforms, opacity: activeVideoBlock ? 1 : 0 }}>
                   <video
                     ref={videoRef}
                     src={effectiveVideoSrc || undefined}

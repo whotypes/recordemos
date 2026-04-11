@@ -242,6 +242,8 @@ export const updateTrim = mutation({
     blockId: v.id("timeline_blocks"),
     trimStartMs: v.number(),
     trimEndMs: v.number(),
+    startMs: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx)
@@ -257,17 +259,26 @@ export const updateTrim = mutation({
       throw new Error("Not authorized to modify this project")
     }
 
-    if (block.trimStartMs === args.trimStartMs && block.trimEndMs === args.trimEndMs) return
-
-    await ctx.db.patch(args.blockId, {
+    const updates: any = {
       trimStartMs: args.trimStartMs,
       trimEndMs: args.trimEndMs,
-    })
+    }
+
+    if (args.startMs !== undefined) updates.startMs = args.startMs
+    if (args.durationMs !== undefined) updates.durationMs = args.durationMs
+
+    await ctx.db.patch(args.blockId, updates)
 
     await ctx.db.insert("timeline_edits", {
       projectId: block.projectId,
       type: "TRIM_BLOCK",
-      payload: { blockId: args.blockId, trimStartMs: args.trimStartMs, trimEndMs: args.trimEndMs },
+      payload: {
+        blockId: args.blockId,
+        trimStartMs: args.trimStartMs,
+        trimEndMs: args.trimEndMs,
+        startMs: args.startMs,
+        durationMs: args.durationMs
+      },
       createdAt: Date.now(),
     })
   },
@@ -479,5 +490,75 @@ export const batchUpdate = mutation({
 
       await ctx.db.patch(update.blockId, patches)
     }
+  },
+})
+
+export const split = mutation({
+  args: {
+    blockId: v.id("timeline_blocks"),
+    splitTimeMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx)
+    if (!user) {
+      throw new Error("Not authenticated")
+    }
+
+    const block = await ctx.db.get(args.blockId)
+    if (!block) return
+
+    const hasAccess = await hasProjectAccess(ctx, user._id, block.projectId)
+    if (!hasAccess) {
+      throw new Error("Not authorized to modify this project")
+    }
+
+    const blockStart = block.startMs
+    const blockEnd = block.startMs + block.durationMs
+
+    if (args.splitTimeMs <= blockStart || args.splitTimeMs >= blockEnd) {
+      throw new Error("Split time must be within block boundaries")
+    }
+
+    // 1. Update original block duration
+    const firstPartDuration = args.splitTimeMs - blockStart
+    await ctx.db.patch(args.blockId, {
+      durationMs: firstPartDuration,
+    })
+
+    // 2. Create new block for the second part
+    const secondPartDuration = block.durationMs - firstPartDuration
+    const timeOffset = args.splitTimeMs - blockStart
+
+    // For video blocks, we need to adjust trimStart to maintain continuity
+    // newTrimStart = oldTrimStart + timeOffset
+    const newTrimStart = (block.trimStartMs || 0) + timeOffset
+
+    const newBlockId = await ctx.db.insert("timeline_blocks", {
+      projectId: block.projectId,
+      trackId: block.trackId,
+      assetId: block.assetId,
+      blockType: block.blockType,
+      startMs: args.splitTimeMs,
+      durationMs: secondPartDuration,
+      trimStartMs: newTrimStart,
+      trimEndMs: block.trimEndMs, // Keep original trim end
+      zIndex: block.zIndex,
+      transforms: block.transforms,
+      metadata: block.metadata,
+      createdAt: Date.now(),
+    })
+
+    await ctx.db.insert("timeline_edits", {
+      projectId: block.projectId,
+      type: "SPLIT_BLOCK",
+      payload: {
+        originalBlockId: args.blockId,
+        newBlockId,
+        splitTimeMs: args.splitTimeMs
+      },
+      createdAt: Date.now(),
+    })
+
+    return newBlockId
   },
 })
