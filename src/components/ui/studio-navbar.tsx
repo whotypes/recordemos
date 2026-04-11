@@ -384,7 +384,6 @@ const navigationLinks = [
       { href: "/studio", label: "Studio" },
       // TODO: Server routes that redirect to these
       { href: "/github", label: "GitHub" },
-      { href: "/vibeapps", label: "VibeApps" },
       { href: "/manifesto", label: "Manifesto" },
     ],
   },
