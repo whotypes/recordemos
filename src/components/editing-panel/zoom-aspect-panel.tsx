@@ -22,7 +22,7 @@ export default function ZoomAspectPanel() {
 
       <div className={isDisabled ? 'pointer-events-none opacity-40' : ''}>
         <div className="w-full">
-        <h3 className="mb-3 text-xs font-medium uppercase text-dark/70">Zoom & Pan</h3>
+        <h3 className="mb-3 text-xs font-medium uppercase text-muted-foreground">Zoom & Pan</h3>
         <div className="flex justify-center gap-2 mb-3">
           <button
             onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}
@@ -41,7 +41,7 @@ export default function ZoomAspectPanel() {
       </div>
 
       <div className="w-full">
-        <h3 className="mb-3 text-xs font-medium uppercase text-dark/70">Aspect Ratio</h3>
+        <h3 className="mb-3 text-xs font-medium uppercase text-muted-foreground">Aspect Ratio</h3>
         <div className="flex flex-col items-center space-y-1.5">
           {["16:9", "9:16", "1:1", "4:3", "Custom"].map((ratio) => (
             <button

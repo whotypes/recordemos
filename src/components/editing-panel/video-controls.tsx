@@ -169,8 +169,8 @@ export default function VideoControls() {
       {/* Scale */}
       <div className="mb-8">
         <div className="mb-3 flex items-center justify-center">
-          <h3 className="text-xs font-medium uppercase text-dark/70">Scale</h3>
-          <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+          <h3 className="text-xs font-medium uppercase text-muted-foreground">Scale</h3>
+          <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
             {Math.round(scale * 100)}%
           </p>
         </div>
@@ -201,12 +201,12 @@ export default function VideoControls() {
 
       {/* Position */}
       <div className="mb-8">
-        <h3 className="mb-4 text-xs font-medium uppercase text-dark/70">Position</h3>
+        <h3 className="mb-4 text-xs font-medium uppercase text-muted-foreground">Position</h3>
         <PositionControl />
 
         <div className="mb-3 mt-6 flex items-center justify-center">
-          <h3 className="text-xs font-medium uppercase text-dark/70">Translate X</h3>
-          <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+          <h3 className="text-xs font-medium uppercase text-muted-foreground">Translate X</h3>
+          <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
             {`${Math.round(translateX)}px`}
           </p>
           <Button
@@ -216,7 +216,7 @@ export default function VideoControls() {
             className="ml-2"
             onClick={() => setTranslateX(0)}
           >
-            <RotateCcw size={15} className="text-dark/80" />
+            <RotateCcw size={15} className="text-muted-foreground" />
           </Button>
         </div>
 
@@ -242,8 +242,8 @@ export default function VideoControls() {
         </div>
 
         <div className="mb-3 mt-3 flex items-center justify-center">
-          <h3 className="text-xs font-medium uppercase text-dark/70">Translate Y</h3>
-          <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+          <h3 className="text-xs font-medium uppercase text-muted-foreground">Translate Y</h3>
+          <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
             {`${Math.round(translateY)}px`}
           </p>
           <Button
@@ -253,7 +253,7 @@ export default function VideoControls() {
             className="ml-2"
             onClick={() => setTranslateY(0)}
           >
-            <RotateCcw size={15} className="text-dark/80" />
+            <RotateCcw size={15} className="text-muted-foreground" />
           </Button>
         </div>
 
@@ -283,8 +283,8 @@ export default function VideoControls() {
 
       {/* 3D Perspective */}
       <div className="mb-3 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">3D Depth</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">3D Depth</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(perspective)}px`}
         </p>
         <Button
@@ -294,7 +294,7 @@ export default function VideoControls() {
           className="ml-2"
           onClick={() => setPerspective(2000)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 
@@ -321,8 +321,8 @@ export default function VideoControls() {
 
       {/* RotateX */}
       <div className="mb-3 mt-8 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">Rotate X</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">Rotate X</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(rotateX)}°`}
         </p>
         <Button
@@ -332,7 +332,7 @@ export default function VideoControls() {
           className="ml-2"
           onClick={() => setRotateX(0)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 
@@ -359,8 +359,8 @@ export default function VideoControls() {
 
       {/* RotateY */}
       <div className="mb-3 mt-3 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">Rotate Y</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">Rotate Y</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(rotateY)}°`}
         </p>
         <Button
@@ -370,7 +370,7 @@ export default function VideoControls() {
           className="ml-2"
           onClick={() => setRotateY(0)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 
@@ -397,8 +397,8 @@ export default function VideoControls() {
 
       {/* RotateZ */}
       <div className="mb-3 mt-3 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">Rotate Z</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">Rotate Z</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(rotateZ)}°`}
         </p>
         <Button
@@ -408,7 +408,7 @@ export default function VideoControls() {
           className="ml-2"
           onClick={() => setRotateZ(0)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 

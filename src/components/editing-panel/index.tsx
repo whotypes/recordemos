@@ -53,8 +53,8 @@ export default function EditingPanel({ projectId, onExport }: EditingPanelProps)
   const activeTab = tabs[activeTabIndex] || tabs[0]
 
   return (
-    <div className="flex w-full h-full bg-card">
-      <ul className="flex basis-full flex-col items-center gap-6 overflow-x-hidden border-r border-border/60 px-4 py-4 md:max-w-[28%] md:basis-[28%] md:border-r">
+    <div className="flex h-full w-full min-w-0 overflow-hidden bg-card">
+      <ul className="flex w-[4.75rem] shrink-0 flex-col items-center gap-4 border-r border-border/60 px-2 py-4">
         {tabs.map((tab, index) => (
           <SidebarButton
             key={tab.id}
@@ -67,13 +67,13 @@ export default function EditingPanel({ projectId, onExport }: EditingPanelProps)
         ))}
       </ul>
 
-      <div className="relative hidden h-full w-full flex-col overflow-hidden md:flex min-w-0">
-        <ScrollArea type="scroll" className="flex-1 min-h-0">
-          <div className="flex flex-col px-4">
-            <div className="flex w-full flex-col py-10">
-              <h3 className="mb-8 flex items-center gap-2 text-xs font-semibold uppercase text-dark/70 whitespace-nowrap">
+      <div className="relative hidden h-full min-w-0 flex-1 flex-col overflow-hidden md:flex">
+        <ScrollArea type="scroll" className="min-h-0 flex-1 overflow-x-hidden">
+          <div className="flex min-w-0 flex-col px-4">
+            <div className="flex w-full min-w-0 flex-col py-6">
+              <h3 className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {activeTab.icon}
-                <div>{activeTab.text}</div>
+                <span>{activeTab.text}</span>
               </h3>
               {activeTab.component}
             </div>

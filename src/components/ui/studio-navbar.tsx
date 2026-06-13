@@ -339,11 +339,11 @@ function CloudUploadToggle() {
 
   const getTooltipText = () => {
     if (isDisabled) {
-      return "Sign in to enable cloud upload"
+      return "Sign in to save your project to the cloud"
     }
     return cloudUploadEnabled
-      ? "Cloud upload enabled - videos will be saved to the project"
-      : "Cloud upload disabled - videos will only be edited locally"
+      ? "Cloud sync on — changes save to your project"
+      : "Local only — changes won't be saved to cloud"
   }
 
   return (

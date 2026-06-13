@@ -9,7 +9,7 @@ import { Check, Edit3, Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const inlineEditVariants = cva(
-  "relative inline-flex items-center gap-2 transition-colors focus-within:outline-none text-sm text-foreground",
+  "relative flex w-full min-w-0 items-center gap-2 transition-colors focus-within:outline-none text-sm text-foreground",
   {
     variants: {
       variant: {
@@ -343,12 +343,12 @@ const InlineEdit = React.forwardRef<HTMLDivElement, InlineEditProps>(
     // Render display
     const renderDisplay = () => {
       const content = (
-        <>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
             className={cn(
-              "flex-1 truncate text-sm",
+              "min-w-0 flex-1 truncate text-sm",
               !value && "text-muted-foreground",
-              value && "text-foreground"
+              value && "text-foreground",
             )}
           >
             {displayValue}
@@ -356,12 +356,12 @@ const InlineEdit = React.forwardRef<HTMLDivElement, InlineEditProps>(
           {showEditIcon && (
             <Edit3
               className={cn(
-                "h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground",
-                disabled && "hidden"
+                "h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground",
+                disabled && "hidden",
               )}
             />
           )}
-        </>
+        </div>
       )
 
       if (DisplayComponent) {

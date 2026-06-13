@@ -26,7 +26,7 @@ export default function SidebarButton({ icon, text, index, activeTabIndex, setAc
       >
         {icon}
       </Button>
-      <span className="hidden max-w-[3.25rem] truncate text-xs md:inline">
+      <span className="w-full text-center text-[0.65rem] leading-tight text-muted-foreground">
         {text}
       </span>
     </li>

@@ -130,7 +130,7 @@ export default function BackgroundSelector() {
 
 			<div className={isDisabled ? "pointer-events-none opacity-40" : ""}>
 				<div>
-					<h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase text-dark/70">
+					<h3 className="mt-8 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
 						<span>Wallpapers</span>
 						<Popover>
 							<PopoverTrigger asChild>
@@ -240,7 +240,7 @@ export default function BackgroundSelector() {
 				</div>
 
 				<div>
-					<h3 className="mt-8 text-xs font-medium uppercase text-dark/70">
+					<h3 className="mt-8 text-xs font-medium uppercase text-muted-foreground">
 						Gradients
 					</h3>
 					<ul className="mt-4 grid grid-cols-4 gap-3 md:grid-cols-5">
@@ -300,7 +300,7 @@ export default function BackgroundSelector() {
 				</div>
 
 				<div>
-					<h3 className="mb-3 mt-8 text-xs font-medium uppercase text-dark/70">
+					<h3 className="mb-3 mt-8 text-xs font-medium uppercase text-muted-foreground">
 						Color Picker
 					</h3>
 					<div className="flex justify-center">
@@ -343,7 +343,7 @@ export default function BackgroundSelector() {
 				</div>
 
 				<div>
-					<h3 className="mt-8 text-xs font-medium uppercase text-dark/70">
+					<h3 className="mt-8 text-xs font-medium uppercase text-muted-foreground">
 						Solid Colors
 					</h3>
 

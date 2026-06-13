@@ -5,7 +5,7 @@ export default function ZoomControls() {
   const setZoomLevel = useVideoOptionsStore((state) => state.setZoomLevel)
   return (
     <div className="w-full">
-      <h3 className="mb-3 text-xs font-medium uppercase text-dark/70">Zoom & Pan</h3>
+      <h3 className="mb-3 text-xs font-medium uppercase text-muted-foreground">Zoom & Pan</h3>
       <div className="flex justify-center gap-2 mb-3">
         <button
           onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}

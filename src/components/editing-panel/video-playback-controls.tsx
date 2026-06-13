@@ -11,12 +11,14 @@ export default function VideoPlaybackControls() {
   const isDisabled = !videoSrc
 
   return (
-    <div className="mb-8 w-full">
-      <h3 className="mb-4 text-xs font-medium uppercase text-dark/70">Playback</h3>
+    <div className="w-full">
+      <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Playback
+      </h3>
       <div
-        className={`flex flex-col gap-4 ${isDisabled ? "pointer-events-none opacity-40" : ""}`}
+        className={`flex flex-col gap-3 ${isDisabled ? "pointer-events-none opacity-40" : ""}`}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
           <label htmlFor="loop-checkbox" className="cursor-pointer text-sm text-foreground">
             Loop video
           </label>
@@ -25,9 +27,10 @@ export default function VideoPlaybackControls() {
             checked={loop}
             onCheckedChange={(checked) => setLoop(checked === true)}
             disabled={isDisabled}
+            className="size-[1.125rem] border-muted-foreground/40 bg-background"
           />
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
           <label htmlFor="mute-checkbox" className="cursor-pointer text-sm text-foreground">
             Mute audio
           </label>
@@ -36,6 +39,7 @@ export default function VideoPlaybackControls() {
             checked={muted}
             onCheckedChange={(checked) => setMuted(checked === true)}
             disabled={isDisabled}
+            className="size-[1.125rem] border-muted-foreground/40 bg-background"
           />
         </div>
       </div>

@@ -5,7 +5,7 @@ export default function AspectRatioSelector() {
   const setAspectRatio = useVideoOptionsStore((state) => state.setAspectRatio)
   return (
     <div className="w-full">
-      <h3 className="mb-3 text-xs font-medium uppercase text-dark/70">Aspect Ratio</h3>
+      <h3 className="mb-3 text-xs font-medium uppercase text-muted-foreground">Aspect Ratio</h3>
       <div className="flex flex-col items-center space-y-1.5">
         {["16:9", "9:16", "1:1", "4:3", "Custom"].map((ratio) => (
           <button

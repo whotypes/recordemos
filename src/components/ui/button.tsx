@@ -16,7 +16,7 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         stylish: 'bg-accent/10 px-3 py-1 text-sm font-normal leading-6 text-primary border border-primary/10',
-        icon: 'text-primary bg-[#E0E0EC] dark:bg-background border border-border dark:text-dark h-12 px-5 py-2.5',
+        icon: 'text-primary bg-[#E0E0EC] dark:bg-background border border-border dark:text-foreground h-12 px-5 py-2.5',
         activeIcon: 'text-white bg-gradient-to-br from-primary via-primary/90 to-primary/50 h-12 px-5 py-2.5 font-medium border-0 border-border dark:text-[#F2F3F9] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
         menuItem: 'justify-between px-1.5 hover:bg-indigo-400/10 hover:text-foreground/80 rounded-sm cursor-default',
       },

@@ -142,7 +142,7 @@ export default function VideoTranslate() {
   return (
     <div className="w-full">
       <div className="mb-8">
-        <h3 className="mb-4 text-xs font-medium uppercase text-dark/70">Position</h3>
+        <h3 className="mb-4 text-xs font-medium uppercase text-muted-foreground">Position</h3>
         <PositionControl />
       </div>
       <div className="mb-2">
@@ -151,8 +151,8 @@ export default function VideoTranslate() {
       <div className="mb-4">
         <div className={`w-full ${videoSrc ? '' : 'pointer-events-none opacity-40'}`}>
           <div className="mb-3 flex items-center justify-center">
-            <h3 className="text-xs font-medium uppercase text-dark/70">Translate X</h3>
-            <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+            <h3 className="text-xs font-medium uppercase text-muted-foreground">Translate X</h3>
+            <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
               {`${Math.round(translateX)}px`}
             </p>
             <Button
@@ -162,7 +162,7 @@ export default function VideoTranslate() {
               className="ml-2"
               onClick={() => setTranslateX(0)}
             >
-              <RotateCcw size={15} className="text-dark/80" />
+              <RotateCcw size={15} className="text-muted-foreground" />
             </Button>
           </div>
 
@@ -188,8 +188,8 @@ export default function VideoTranslate() {
           </div>
 
           <div className="mb-3 mt-3 flex items-center justify-center">
-            <h3 className="text-xs font-medium uppercase text-dark/70">Translate Y</h3>
-            <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+            <h3 className="text-xs font-medium uppercase text-muted-foreground">Translate Y</h3>
+            <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
               {`${Math.round(translateY)}px`}
             </p>
             <Button
@@ -199,7 +199,7 @@ export default function VideoTranslate() {
               className="ml-2"
               onClick={() => setTranslateY(0)}
             >
-              <RotateCcw size={15} className="text-dark/80" />
+              <RotateCcw size={15} className="text-muted-foreground" />
             </Button>
           </div>
 

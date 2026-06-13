@@ -21,8 +21,8 @@ export default function VideoPerspective() {
     <div className={`w-full ${videoSrc ? '' : 'pointer-events-none opacity-40'}`}>
       {/* Perspective */}
       <div className="mb-3 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">3D Depth</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">3D Depth</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(perspective)}px`}
         </p>
         <Button
@@ -32,7 +32,7 @@ export default function VideoPerspective() {
           className="ml-2"
           onClick={() => setPerspective(2000)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 
@@ -61,8 +61,8 @@ export default function VideoPerspective() {
 
       {/* RotateX */}
       <div className="mb-3 mt-8 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">Rotate X</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">Rotate X</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(rotateX)}°`}
         </p>
         <Button
@@ -72,7 +72,7 @@ export default function VideoPerspective() {
           className="ml-2"
           onClick={() => setRotateX(0)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 
@@ -99,8 +99,8 @@ export default function VideoPerspective() {
 
       {/* RotateY */}
       <div className="mb-3 mt-3 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">Rotate Y</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">Rotate Y</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(rotateY)}°`}
         </p>
         <Button
@@ -110,7 +110,7 @@ export default function VideoPerspective() {
           className="ml-2"
           onClick={() => setRotateY(0)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 
@@ -137,8 +137,8 @@ export default function VideoPerspective() {
 
       {/* RotateZ */}
       <div className="mb-3 mt-3 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">Rotate Z</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">Rotate Z</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {`${Math.round(rotateZ)}°`}
         </p>
         <Button
@@ -148,7 +148,7 @@ export default function VideoPerspective() {
           className="ml-2"
           onClick={() => setRotateZ(0)}
         >
-          <RotateCcw size={15} className="text-dark/80" />
+          <RotateCcw size={15} className="text-muted-foreground" />
         </Button>
       </div>
 

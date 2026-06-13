@@ -9,8 +9,8 @@ export default function VideoScale() {
   return (
     <div className={`w-full ${videoSrc ? '' : 'pointer-events-none opacity-40'}`}>
       <div className="mb-3 flex items-center justify-center">
-        <h3 className="text-xs font-medium uppercase text-dark/70">Scale</h3>
-        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-dark/70">
+        <h3 className="text-xs font-medium uppercase text-muted-foreground">Scale</h3>
+        <p className="ml-2 rounded-md bg-primary/10 p-[0.4rem] text-[0.8rem] text-muted-foreground">
           {Math.round(scale * 100)}%
         </p>
       </div>
