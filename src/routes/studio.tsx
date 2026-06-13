@@ -1,6 +1,8 @@
 import EditingPanel from "@/components/editing-panel/index";
 import ExportModule from "@/components/export-module";
 import PreviewCanvas from "@/components/preview-canvas";
+import PreviewTimelineBar from "@/components/preview-timeline-bar";
+import SessionModeBanner from "@/components/session-mode-banner";
 import TimelineEditor from "@/components/timeline-editor";
 import StudioNavbar from "@/components/ui/studio-navbar";
 import { useCompositionStore } from "@/lib/composition-store";
@@ -15,6 +17,9 @@ import { usePlayheadStore } from "@/lib/playhead-store";
 import { useTimelineDurationStore } from "@/lib/timeline-duration-store";
 import { useLocalTimelineStore } from "@/lib/local-timeline-store";
 import { useVideoOptionsStore } from "@/lib/video-options-store";
+import { isValidDuration, resolveLayoutDurationSec } from "@/lib/video-metadata";
+import { getSessionMode } from "@/lib/session-mode";
+import { seekPreviewVideo } from "@/lib/seek-preview";
 import { useVideoPlayerStore } from "@/lib/video-player-store";
 import { useAuth } from "@clerk/tanstack-react-start";
 import { convexQuery } from "@convex-dev/react-query";
@@ -22,7 +27,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/studio")({
 	ssr: false,
@@ -101,14 +107,43 @@ function Studio() {
 		videoFileName,
 		currentClipAssetId,
 		cloudUploadEnabled,
+		setCloudUploadEnabled,
 	} = useVideoPlayerStore();
+
+	const autoEnabledProjectsRef = useRef<Set<string>>(new Set());
+	const userDisabledCloudForProjectRef = useRef<Set<string>>(new Set());
+
+	useEffect(() => {
+		if (!isAuthLoaded || !isSignedIn || !projectId) {
+			return;
+		}
+		if (userDisabledCloudForProjectRef.current.has(projectId)) {
+			return;
+		}
+		if (autoEnabledProjectsRef.current.has(projectId)) {
+			return;
+		}
+
+		setCloudUploadEnabled(true);
+		autoEnabledProjectsRef.current.add(projectId);
+	}, [isAuthLoaded, isSignedIn, projectId, setCloudUploadEnabled]);
+
+	useEffect(() => {
+		if (!projectId) {
+			return;
+		}
+		if (autoEnabledProjectsRef.current.has(projectId) && !cloudUploadEnabled) {
+			userDisabledCloudForProjectRef.current.add(projectId);
+		}
+	}, [cloudUploadEnabled, projectId]);
 
 	const localBlocks = useLocalTimelineStore((s) => s.localBlocks);
 	const initializeLocalTimeline = useLocalTimelineStore(
 		(s) => s.initializeLocalTimeline,
 	);
 
-	// File upload / dropzone seeds the local timeline once duration is known.
+	// Fallback: preview-canvas dropzone and legacy local paths may set videoSrc
+	// without ingestVideo; ingestVideo owns primary timeline init for uploads/recordings.
 	const isLocalSession = !cloudUploadEnabled || !projectId;
 	useEffect(() => {
 		if (!isLocalSession) return;
@@ -127,18 +162,19 @@ function Studio() {
 	const { playheadMs, isPlaying, setPlayheadMs, setIsPlaying } =
 		usePlayheadStore();
 	const { videoRef } = useVideoPlayer(videoSrc);
-	const { computeActiveBlock } = useCompositionStore();
+	const { computeActiveBlock, activeVideoBlock, playbackEndMs } =
+		useCompositionStore();
 	const { getEffectiveDuration } = useTimelineDurationStore();
 
 	// derive current time in seconds for display
 	const currentTime = playheadMs / 1000;
 
-	// get the effective timeline duration (grows dynamically with blocks) - used for playback logic
+	// Edited timeline length from composition store (respects trim)
 	const timelineDuration = getEffectiveDuration();
 
-	// use raw video duration for timeline canvas layout (fixed, doesn't grow)
-	// this keeps the canvas stable when blocks are added/moved/trimmed
-	const rawVideoDuration = videoDuration > 0 ? videoDuration : timelineDuration;
+	const rawVideoDuration = isValidDuration(videoDuration)
+		? videoDuration
+		: timelineDuration;
 
 	// Check if we have a video - either videoSrc is set, or we have metadata/asset ID
 	const hasVideo = !!(videoSrc || videoFileName || currentClipAssetId);
@@ -152,15 +188,48 @@ function Studio() {
 		setVideoDuration(0);
 	};
 
-	// ensure composition compiler stays in sync even when not in edit mode,
-	// so export and preview have timeline data immediately after upload
-	useTimelineBlocks(
+	// ensure composition compiler stays in sync even when not in edit mode
+	const timelineBlocks = useTimelineBlocks(
 		projectId as Id<"projects"> | null,
 		timelineDuration,
 		currentTime,
 		selectedBlock,
 		setSelectedBlock,
 		handleVideoBlockDelete,
+	);
+
+	const layoutTimelineDuration = useMemo(() => {
+		if (playbackEndMs > 0) return playbackEndMs / 1000;
+		return resolveLayoutDurationSec(
+			rawVideoDuration,
+			timelineBlocks.blocks.filter((b) => b.type === "video"),
+		);
+	}, [playbackEndMs, rawVideoDuration, timelineBlocks.blocks]);
+
+	const handleSetCurrentTime = useCallback(
+		(time: number) => {
+			if (usePlayheadStore.getState().isPlaying) {
+				setIsPlaying(false);
+			}
+
+			const timeMs = time * 1000;
+			const endMs =
+				useCompositionStore.getState().playbackEndMs ||
+				layoutTimelineDuration * 1000;
+			const maxMs = endMs > 0 ? endMs - 1 : timeMs;
+			const clampedMs = Math.max(0, Math.min(timeMs, maxMs));
+
+			setPlayheadMs(clampedMs, "scrub");
+			computeActiveBlock(clampedMs);
+			seekPreviewVideo(videoRef.current, clampedMs);
+		},
+		[
+			layoutTimelineDuration,
+			setPlayheadMs,
+			setIsPlaying,
+			computeActiveBlock,
+			videoRef,
+		],
 	);
 
 	// broadcast presence to other users
@@ -188,6 +257,28 @@ function Studio() {
 
 	const aspectRatio = useVideoOptionsStore((state) => state.aspectRatio);
 	const editorMode = useVideoOptionsStore((state) => state.editorMode);
+	const setEditorMode = useVideoOptionsStore((state) => state.setEditorMode);
+
+	const sessionMode = getSessionMode({
+		isSignedIn: !!isSignedIn,
+		projectId,
+		cloudUploadEnabled,
+	});
+
+	const projectName = useMemo(() => {
+		if (!projectId || !convexProjects) {
+			return undefined;
+		}
+		const projects = Array.isArray(convexProjects) ? convexProjects : [];
+		return projects.find((project) => project._id === projectId)?.name;
+	}, [projectId, convexProjects]);
+
+	const handleEnableCloud = () => {
+		setCloudUploadEnabled(true);
+		toast.success("Cloud sync enabled", {
+			description: "Changes will be saved to your project",
+		});
+	};
 
 	return (
 		<div className="h-screen w-full bg-background flex flex-col overflow-hidden">
@@ -196,8 +287,17 @@ function Studio() {
 				currentUserId={currentUser?._id}
 			/>
 
+			<SessionModeBanner
+				sessionMode={sessionMode}
+				projectId={projectId}
+				projectName={projectName}
+				onEnableCloud={
+					sessionMode === "signed-in-local" ? handleEnableCloud : undefined
+				}
+			/>
+
 			<div className="flex flex-1 overflow-hidden gap-0">
-				<div className="flex-1 max-w-96 min-w-xs border-r border-border bg-card sidebar-scrollbar">
+				<div className="w-full max-w-md min-w-[20rem] shrink-0 overflow-hidden border-r border-border bg-card sidebar-scrollbar">
 					<EditingPanel
 						projectId={projectId}
 						onExport={() => setShowExport(true)}
@@ -206,52 +306,36 @@ function Studio() {
 
 				<div className="flex-1 flex flex-col overflow-hidden">
 					<div className="flex-1 overflow-auto bg-background flex items-center justify-center p-6 relative">
-						<PreviewCanvas videoRef={videoRef} />
+						<PreviewCanvas
+							videoRef={videoRef}
+							projectId={projectId as Id<"projects"> | undefined}
+						/>
 					</div>
 
 					<div className="border-t border-border bg-card">
 						{editorMode === "edit" ? (
 							<TimelineEditor
-								projectId={projectId as Id<"projects"> | null}
+								blocks={timelineBlocks.blocks}
+								timelineDuration={layoutTimelineDuration}
+								blockHandlers={timelineBlocks}
 								currentTime={currentTime}
-								setCurrentTime={(time) => {
-									const timeMs = time * 1000;
-									const compiler = useCompositionStore.getState().compiler;
-
-									// Check if scrubbing into a trim block and skip it
-									let finalTimeMs = timeMs;
-									if (compiler) {
-										const trimBlock = compiler.getTrimBlockAt(timeMs);
-										if (trimBlock) {
-											// Skip to the end of the trim block
-											finalTimeMs = trimBlock.startMs + trimBlock.durationMs;
-											console.log(
-												`[SCRUB] Skipped trim block from ${(trimBlock.startMs / 1000).toFixed(2)}s to ${(finalTimeMs / 1000).toFixed(2)}s`,
-											);
-										}
-									}
-
-									// Normal scrubbing - just set playhead, video will follow
-									console.log(
-										`[SCRUB] Set playhead to ${(finalTimeMs / 1000).toFixed(2)}s`,
-									);
-									setPlayheadMs(finalTimeMs, "scrub");
-								}}
+								setCurrentTime={handleSetCurrentTime}
 								isPlaying={isPlaying}
 								setIsPlaying={setIsPlaying}
 								selectedBlock={selectedBlock}
 								setSelectedBlock={setSelectedBlock}
-								videoDuration={rawVideoDuration}
-								onVideoBlockDelete={handleVideoBlockDelete}
+								activeVideoBlockId={activeVideoBlock?.blockId ?? null}
 							/>
 						) : (
-							<div className="text-center py-12">
-								<p className="text-sm text-muted-foreground">
-									{hasVideo
-										? "Switch to edit mode to start editing your video"
-										: "Upload a video to get started"}
-								</p>
-							</div>
+							<PreviewTimelineBar
+								hasVideo={hasVideo}
+								timelineDuration={layoutTimelineDuration}
+								currentTime={currentTime}
+								isPlaying={isPlaying}
+								onSetCurrentTime={handleSetCurrentTime}
+								onSetIsPlaying={setIsPlaying}
+								onOpenEditor={() => setEditorMode("edit")}
+							/>
 						)}
 					</div>
 				</div>
