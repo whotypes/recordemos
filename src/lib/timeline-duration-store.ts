@@ -25,7 +25,7 @@ const DEFAULT_MIN_DURATION = 10 // 10 seconds minimum
 
 export const useTimelineDurationStore = create<TimelineDurationState>((set, get) => ({
   videoDuration: 0,
-  timelineDuration: DEFAULT_MIN_DURATION,
+  timelineDuration: 0,
   minTimelineDuration: DEFAULT_MIN_DURATION,
 
   setVideoDuration: (duration) => {
@@ -33,19 +33,20 @@ export const useTimelineDurationStore = create<TimelineDurationState>((set, get)
   },
 
   setTimelineDuration: (duration) => {
-    const effectiveDuration = Math.max(duration, DEFAULT_MIN_DURATION)
-    set({ timelineDuration: effectiveDuration })
+    set({ timelineDuration: Math.max(0, duration) })
   },
 
   getEffectiveDuration: () => {
-    const { timelineDuration, minTimelineDuration } = get()
-    return Math.max(timelineDuration, minTimelineDuration)
+    const { timelineDuration, videoDuration, minTimelineDuration } = get()
+    if (timelineDuration > 0) return timelineDuration
+    if (videoDuration > 0) return videoDuration
+    return minTimelineDuration
   },
 
   reset: () => {
     set({
       videoDuration: 0,
-      timelineDuration: DEFAULT_MIN_DURATION,
+      timelineDuration: 0,
     })
   },
 }))

@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { clampPlayheadMs } from "./playback-bounds"
 
 interface PlayheadState {
   // canonical timeline time in milliseconds
@@ -20,7 +21,7 @@ export const usePlayheadStore = create<PlayheadState>((set, get) => ({
   isPlaying: false,
 
   setPlayheadMs: (timeMs, reason = "playback") => {
-    const clamped = Math.max(0, timeMs)
+    const clamped = clampPlayheadMs(timeMs)
 
     // optional: log for debugging sync issues
     if (process.env.NODE_ENV === "development" && reason !== "playback") {

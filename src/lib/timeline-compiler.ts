@@ -76,13 +76,10 @@ export class TimelineCompiler {
         // Calculate in-asset time for media blocks (video/audio)
         let inAssetTime = 0
         if (block.blockType === "video") {
-          // Time within the visible window
           const localOffset = timeMs - visibleStart
-          // Map to source video time: start at trimStart, advance by localOffset
-          inAssetTime = (block.trimStartMs || 0) + localOffset
-
-          // No clamping needed if duration is managed correctly, but safe to keep
-          // const maxSourceTime = ... (we don't track source duration here easily without asset metadata)
+          const trimStart = block.trimStartMs || 0
+          const maxAssetTime = trimStart + block.durationMs
+          inAssetTime = Math.min(trimStart + localOffset, Math.max(trimStart, maxAssetTime - 1))
         }
 
         const { visibleDuration } = this.getVisibleWindow(block)
@@ -136,6 +133,58 @@ export class TimelineCompiler {
   }
 
   /**
+   * Active overlay zoom/pan effects at a timeline position.
+   */
+  private getOverlayEffectsAt(timeMs: number): {
+    scaleMultiplier: number
+    cropRect?: { x: number; y: number; width: number; height: number }
+  } {
+    let scaleMultiplier = 1
+    let cropRect: { x: number; y: number; width: number; height: number } | undefined
+
+    const overlays = this.blocks
+      .filter(
+        (b) =>
+          (b.blockType === "zoom" || b.blockType === "pan") &&
+          timeMs >= b.startMs &&
+          timeMs < b.startMs + b.durationMs,
+      )
+      .sort((a, b) => a.zIndex - b.zIndex)
+
+    for (const overlay of overlays) {
+      if (overlay.blockType === "zoom" && overlay.metadata?.zoomLevel) {
+        scaleMultiplier *= overlay.metadata.zoomLevel
+      }
+      if (overlay.metadata?.cropX !== undefined) {
+        cropRect = {
+          x: overlay.metadata.cropX,
+          y: overlay.metadata.cropY ?? 0,
+          width: overlay.metadata.cropW ?? 100,
+          height: overlay.metadata.cropH ?? 100,
+        }
+      }
+    }
+
+    return { scaleMultiplier, cropRect }
+  }
+
+  private applyOverlayEffects(compiled: CompiledBlock, timeMs: number): CompiledBlock {
+    const { scaleMultiplier, cropRect } = this.getOverlayEffectsAt(timeMs)
+    if (scaleMultiplier === 1 && !cropRect) {
+      return compiled
+    }
+
+    return {
+      ...compiled,
+      transforms: {
+        ...compiled.transforms,
+        scale: compiled.transforms.scale * scaleMultiplier,
+      },
+      cropRect: cropRect ?? compiled.cropRect,
+    }
+  }
+
+  /**
    * Get the topmost (highest z-index) active video block at the given time.
    */
   getActiveVideoBlock(timeMs: number): CompiledBlock | null {
@@ -143,7 +192,9 @@ export class TimelineCompiler {
     const videos = state.activeBlocks.filter((b) => b.block.blockType === "video")
     if (videos.length === 0) return null
     // activeBlocks sorted ascending by zIndex; last video wins for stacking
-    return videos[videos.length - 1] ?? null
+    const active = videos[videos.length - 1] ?? null
+    if (!active) return null
+    return this.applyOverlayEffects(active, timeMs)
   }
 
   /**
@@ -188,10 +239,34 @@ export class TimelineCompiler {
   }
 
   /**
+   * Start of first video content on the timeline.
+   */
+  getPlaybackStartMs(): number {
+    const videoBlocks = this.blocks.filter((b) => b.blockType === "video")
+    if (videoBlocks.length === 0) return 0
+    return Math.min(...videoBlocks.map((b) => b.startMs))
+  }
+
+  /**
+   * End of playable video content (ignores overlay-only extent).
+   */
+  getPlaybackEndMs(): number {
+    const videoBlocks = this.blocks.filter((b) => b.blockType === "video")
+    if (videoBlocks.length === 0) return 0
+
+    return Math.max(
+      ...videoBlocks.map((b) => this.getVisibleWindow(b).visibleEnd),
+    )
+  }
+
+  /**
    * Calculate total timeline duration based on visible windows
    */
   getTotalDuration(): number {
     if (this.blocks.length === 0) return 0
+
+    const playbackEnd = this.getPlaybackEndMs()
+    if (playbackEnd > 0) return playbackEnd
 
     return Math.max(...this.blocks.map(b => {
       const { visibleEnd } = this.getVisibleWindow(b)
