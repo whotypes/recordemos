@@ -4,25 +4,64 @@ import ScrubberTrack from "@/components/timeline/scrubber-track"
 import TimelineCanvas from "@/components/timeline/timeline-canvas"
 import PlaybackControls from "@/components/ui/playback-controls"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useCompositionStore } from "@/lib/composition-store"
-import { useTimelineBlocks } from "@/lib/hooks/use-timeline-blocks"
 import { useTimelineScrubber } from "@/lib/hooks/use-timeline-scrubber"
-import { BlockData } from "@/lib/types/timeline"
+import { useCompositionStore } from "@/lib/composition-store"
+import { BlockData, TimelineBlock } from "@/lib/types/timeline"
 import { useVideoPlayerStore } from "@/lib/video-player-store"
 import { Move, Plus, ZoomIn } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { Id } from "../../convex/_generated/dataModel"
+
+export interface TimelineBlockHandlers {
+  handleBlockDragPreview?: (blockId: string, newStart: number) => void
+  handleBlockDragEnd: (blockId: string, newStart: number) => void
+  handleBlockResizeStart: (blockId: string, side: "left" | "right") => void
+  handleBlockResizePreview?: (blockId: string, newStart: number, newDuration: number) => void
+  handleBlockResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
+  handleBlockDelete: (blockId: string) => void
+  handleBlockDuplicate: (blockId: string) => void
+  handleAddBlock: (blockData: BlockData) => Promise<void>
+  handleBlockTrimStart?: (blockId: string, side: "left" | "right") => void
+  handleBlockTrimPreview?: (
+    blockId: string,
+    trimStartMs: number,
+    trimEndMs: number,
+    newStartMs?: number,
+    newDurationMs?: number,
+  ) => void
+  handleBlockTrimEnd?: (
+    blockId: string,
+    trimStartMs: number,
+    trimEndMs: number,
+    newStartMs?: number,
+    newDurationMs?: number,
+  ) => void
+  handleBlockSplit: (blockId: string, splitTimeMs: number) => void
+  handleBlockUpdateMetadata?: (
+    blockId: string,
+    metadata: {
+      cropX?: number
+      cropY?: number
+      cropW?: number
+      cropH?: number
+      zoomLevel?: number
+    },
+    persist?: boolean,
+  ) => void
+}
 
 interface TimelineEditorProps {
   projectId: Id<"projects"> | null
+  blocks: TimelineBlock[]
+  timelineDuration: number
+  blockHandlers: TimelineBlockHandlers
   currentTime: number
   setCurrentTime: (time: number) => void
   isPlaying: boolean
   setIsPlaying: (playing: boolean) => void
   selectedBlock: string | null
   setSelectedBlock: (id: string | null) => void
-  videoDuration: number
-  onVideoBlockDelete?: () => void
+  activeVideoBlockId: string | null
 }
 
 const BLOCK_TYPES = [
@@ -43,120 +82,83 @@ const BLOCK_TYPES = [
 ]
 
 export default function TimelineEditor({
-  projectId,
+  blocks,
+  timelineDuration,
+  blockHandlers,
   currentTime,
   setCurrentTime,
   isPlaying,
   setIsPlaying,
   selectedBlock,
   setSelectedBlock,
-  videoDuration,
-  onVideoBlockDelete,
+  activeVideoBlockId,
 }: TimelineEditorProps) {
   const [isDraggingTime, setIsDraggingTime] = useState(false)
   const [showAddBlockPopover, setShowAddBlockPopover] = useState(false)
+  const [pixelsPerSecond, setPixelsPerSecond] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrubberContainerRef = useRef<HTMLDivElement>(null)
 
   const loop = useVideoPlayerStore((state) => state.loop)
   const muted = useVideoPlayerStore((state) => state.muted)
   const setLoop = useVideoPlayerStore((state) => state.setLoop)
   const setMuted = useVideoPlayerStore((state) => state.setMuted)
 
-  const activeVideoBlock = useCompositionStore((state) => state.activeVideoBlock)
-
-  const {
-    blocks,
-    handleBlockDragPreview,
-    handleBlockDragEnd,
-    handleBlockResizeStart,
-    handleBlockResizePreview,
-    handleBlockResizeEnd,
-    handleBlockDelete,
-    handleBlockDuplicate,
-    handleAddBlock,
-    handleBlockTrimStart,
-    handleBlockTrimEnd,
-    handleBlockSplit,
-  } = useTimelineBlocks(
-    projectId,
-    videoDuration,
-    currentTime,
-    selectedBlock,
-    setSelectedBlock,
-    onVideoBlockDelete
+  const clampedCurrentTime = Math.max(
+    0,
+    timelineDuration > 0 ? Math.min(currentTime, timelineDuration) : currentTime,
   )
 
-  const hasActiveWindow =
-    !!activeVideoBlock && activeVideoBlock.visibleDuration > 0
-
-  const windowStartSeconds = hasActiveWindow ? activeVideoBlock.visibleStart / 1000 : 0
-  const windowDurationSeconds = hasActiveWindow
-    ? activeVideoBlock.visibleDuration / 1000
-    : videoDuration
-
-  // for playback controls in sliding-window mode:
-  // show time relative to the visible window start, not the raw video start
-  const playbackControlsCurrentTime = hasActiveWindow
-    ? Math.max(0, Math.min(windowDurationSeconds, currentTime - windowStartSeconds))
-    : currentTime
-
-  const scrubberCurrentTime = hasActiveWindow
-    ? Math.max(0, Math.min(windowDurationSeconds, currentTime - windowStartSeconds))
-    : currentTime
-
   const scrubberSetCurrentTime = (time: number) => {
-    if (hasActiveWindow) {
-      if (windowDurationSeconds <= 0) {
-        setCurrentTime(windowStartSeconds)
-        return
-      }
-
-      const epsilon = 0.001
-      const maxWindowTime = Math.max(0, windowDurationSeconds - epsilon)
-      const clampedTime = Math.max(0, Math.min(maxWindowTime, time))
-
-      setCurrentTime(windowStartSeconds + clampedTime)
-      return
-    }
-
-    setCurrentTime(Math.max(0, time))
+    const epsilon = 0.001
+    const maxTime = timelineDuration > 0
+      ? Math.max(0, timelineDuration - epsilon)
+      : Math.max(0, time)
+    setCurrentTime(Math.max(0, Math.min(maxTime, time)))
   }
 
   const scrubberHook = useTimelineScrubber(
-    scrubberCurrentTime,
-    windowDurationSeconds,
+    clampedCurrentTime,
+    timelineDuration,
     scrubberSetCurrentTime,
     isDraggingTime,
     setIsDraggingTime
   )
 
   const handlePlayPause = () => {
-    if (!isPlaying && hasActiveWindow) {
+    if (!isPlaying && timelineDuration > 0) {
       const epsilon = 0.001
-      const windowEndSeconds = windowStartSeconds + windowDurationSeconds
-      const isAtWindowEnd = currentTime >= windowEndSeconds - epsilon
-
-      if (isAtWindowEnd) {
-        setCurrentTime(windowStartSeconds)
+      const isAtEnd = currentTime >= timelineDuration - epsilon
+      if (isAtEnd) {
+        const compiler = useCompositionStore.getState().compiler
+        const startSec = (compiler?.getPlaybackStartMs() ?? 0) / 1000
+        setCurrentTime(startSec)
       }
     }
-
     setIsPlaying(!isPlaying)
   }
 
-  const handleToggleLoop = () => {
-    setLoop(!loop)
-  }
+  useLayoutEffect(() => {
+    const el = scrubberContainerRef.current ?? scrubberHook.timelineRef.current
+    if (!el) return
 
-  const handleToggleMute = () => {
-    setMuted(!muted)
-  }
+    const update = () => {
+      if (timelineDuration > 0) {
+        setPixelsPerSecond(el.clientWidth / timelineDuration)
+      }
+    }
+
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [timelineDuration, scrubberHook.timelineRef])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.key === "Delete" || e.key === "Backspace") && selectedBlock) {
         e.preventDefault()
-        handleBlockDelete(selectedBlock)
+        blockHandlers.handleBlockDelete(selectedBlock)
       }
     }
 
@@ -165,18 +167,11 @@ export default function TimelineEditor({
       container.addEventListener("keydown", handleKeyDown)
       return () => container.removeEventListener("keydown", handleKeyDown)
     }
-  }, [selectedBlock, handleBlockDelete])
+  }, [selectedBlock, blockHandlers])
 
   const hasVideo = blocks.length > 0
 
-  // calculate pixelsPerSecond
-  const timelineEl = scrubberHook.timelineRef.current
-  const pixelsPerSecond = timelineEl && videoDuration > 0
-    ? timelineEl.clientWidth / videoDuration
-    : 1
-
   const handleBlockClick = (_blockId: string, timeInBlock: number) => {
-    // allow clicking anywhere on timeline, no clamping to video duration
     setCurrentTime(Math.max(0, timeInBlock))
   }
 
@@ -192,7 +187,7 @@ export default function TimelineEditor({
       ...(type === "crop" && { cropX: 10, cropY: 10, cropW: 80, cropH: 80 }),
     }
 
-    await handleAddBlock(blockData)
+    await blockHandlers.handleAddBlock(blockData)
     setShowAddBlockPopover(false)
   }
 
@@ -206,41 +201,36 @@ export default function TimelineEditor({
         <div className="px-4 pt-3 pb-2 border-b border-border/50">
           <PlaybackControls
             hasVideo={hasVideo}
-            currentTime={playbackControlsCurrentTime}
-            videoDuration={windowDurationSeconds}
+            currentTime={clampedCurrentTime}
+            videoDuration={timelineDuration}
             isPlaying={isPlaying}
             loop={loop}
             muted={muted}
             onPlayPause={handlePlayPause}
             onSplit={() => {
               const splitTimeMs = Math.round(currentTime * 1000)
-
               if (selectedBlock) {
-                handleBlockSplit(selectedBlock, splitTimeMs)
-              } else if (activeVideoBlock) {
-                // If no block selected, try to split the active block under playhead
-                handleBlockSplit(activeVideoBlock.blockId, splitTimeMs)
+                blockHandlers.handleBlockSplit(selectedBlock, splitTimeMs)
+              } else if (activeVideoBlockId) {
+                blockHandlers.handleBlockSplit(activeVideoBlockId, splitTimeMs)
               }
             }}
             onSkipToStart={() => {
-              if (hasActiveWindow) {
-                setCurrentTime(windowStartSeconds)
-                return
-              }
-              setCurrentTime(0)
+              const compiler = useCompositionStore.getState().compiler
+              const startSec = (compiler?.getPlaybackStartMs() ?? 0) / 1000
+              setCurrentTime(startSec)
             }}
-            onToggleLoop={handleToggleLoop}
-            onToggleMute={handleToggleMute}
+            onToggleLoop={() => setLoop(!loop)}
+            onToggleMute={() => setMuted(!muted)}
           />
         </div>
       )}
 
       {hasVideo && (
-        <div className="px-4 pt-3 pb-2">
+        <div ref={scrubberContainerRef} className="px-4 pt-3 pb-2">
           <ScrubberTrack
-            videoDuration={windowDurationSeconds}
-            currentTime={scrubberCurrentTime}
-            onTimelineClick={scrubberHook.handleTimelineClick}
+            videoDuration={timelineDuration}
+            currentTime={clampedCurrentTime}
             onScrubberPointerDown={scrubberHook.handleScrubberPointerDown}
             progressRef={scrubberHook.progressRef}
             timelineRef={scrubberHook.timelineRef}
@@ -280,14 +270,6 @@ export default function TimelineEditor({
               </div>
             </PopoverContent>
           </Popover>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground ml-auto">
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Click</kbd>
-            <span>·</span>
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Drag</kbd>
-            <span>·</span>
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Right-click</kbd>
-          </div>
         </div>
       )}
 
@@ -297,20 +279,22 @@ export default function TimelineEditor({
             blocks={blocks}
             selectedBlock={selectedBlock}
             setSelectedBlock={setSelectedBlock}
-            videoDuration={videoDuration}
-            currentTime={currentTime}
+            timelineDuration={timelineDuration}
+            currentTime={clampedCurrentTime}
             pixelsPerSecond={pixelsPerSecond}
             onBlockClick={handleBlockClick}
-            onBlockDragPreview={handleBlockDragPreview}
-            onBlockDragEnd={handleBlockDragEnd}
-            onBlockResizeStart={handleBlockResizeStart}
-            onBlockResizePreview={handleBlockResizePreview}
-            onBlockResizeEnd={handleBlockResizeEnd}
-            onBlockDelete={handleBlockDelete}
-            onBlockDuplicate={handleBlockDuplicate}
-            onBlockTrimStart={handleBlockTrimStart}
-            onBlockTrimEnd={handleBlockTrimEnd}
-            timelineIndicatorRef={scrubberHook.timelineIndicatorRef}
+            onSeek={scrubberSetCurrentTime}
+            onBlockDragPreview={blockHandlers.handleBlockDragPreview}
+            onBlockDragEnd={blockHandlers.handleBlockDragEnd}
+            onBlockResizeStart={blockHandlers.handleBlockResizeStart}
+            onBlockResizePreview={blockHandlers.handleBlockResizePreview}
+            onBlockResizeEnd={blockHandlers.handleBlockResizeEnd}
+            onBlockDelete={blockHandlers.handleBlockDelete}
+            onBlockDuplicate={blockHandlers.handleBlockDuplicate}
+            onBlockTrimStart={blockHandlers.handleBlockTrimStart}
+            onBlockTrimPreview={blockHandlers.handleBlockTrimPreview}
+            onBlockTrimEnd={blockHandlers.handleBlockTrimEnd}
+            onBlockUpdateMetadata={blockHandlers.handleBlockUpdateMetadata}
           />
         </div>
       )}

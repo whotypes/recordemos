@@ -13,8 +13,11 @@ import {
 import { useCompositionStore } from "@/lib/composition-store";
 import { DEFAULT_UNSPLASH_PHOTO_URLS } from "@/lib/constants";
 import { useFrameOptionsStore } from "@/lib/frame-options-store";
-import { useLocalTimelineStore } from "@/lib/local-timeline-store";
+import { useVideoUpload } from "@/lib/hooks/use-video-upload";
 import { usePlayheadStore } from "@/lib/playhead-store";
+import { seekPreviewVideo } from "@/lib/seek-preview";
+import { isValidDuration } from "@/lib/video-metadata";
+import { useTimelineDurationStore } from "@/lib/timeline-duration-store";
 import { cn } from "@/lib/utils";
 import { previewStageBackgroundStyle } from "@/lib/background-preview-style";
 import { useVideoOptionsStore } from "@/lib/video-options-store";
@@ -24,11 +27,13 @@ import {
 } from "@/lib/video-player-store";
 import { gradients } from "@/presets/gradients";
 import { CloudUploadIcon } from "lucide-react";
+import type { Id } from "convex/_generated/dataModel";
 import type React from "react";
 import { useCallback, useEffect, useMemo } from "react";
 
 interface PreviewCanvasProps {
 	videoRef: React.RefObject<HTMLVideoElement | null>;
+	projectId?: Id<"projects">;
 }
 
 const getAspectRatioDimensions = (ratio: string) => {
@@ -42,7 +47,10 @@ const getAspectRatioDimensions = (ratio: string) => {
 	return ratios[ratio] || "aspect-video";
 };
 
-export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
+export default function PreviewCanvas({
+	videoRef,
+	projectId,
+}: PreviewCanvasProps) {
 	const { theme } = useTheme();
 	const {
 		backgroundColor,
@@ -64,34 +72,20 @@ export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
 	} = useVideoOptionsStore();
 	// use selectors for proper reactivity - subscribe to specific state slices
 	const videoSrc = useVideoPlayerStore((state) => state.videoSrc);
-	const setVideoSrc = useVideoPlayerStore((state) => state.setVideoSrc);
 	const setVideoDuration = useVideoPlayerStore(
 		(state) => state.setVideoDuration,
-	);
-	const setVideoFileName = useVideoPlayerStore(
-		(state) => state.setVideoFileName,
-	);
-	const setVideoFileSize = useVideoPlayerStore(
-		(state) => state.setVideoFileSize,
-	);
-	const setVideoFileFormat = useVideoPlayerStore(
-		(state) => state.setVideoFileFormat,
 	);
 	const muted = useVideoPlayerStore((state) => state.muted);
 	const isUploading = useVideoPlayerStore((state) => state.isUploading);
 	const uploadProgress = useVideoPlayerStore((state) => state.uploadProgress);
 	const uploadStatus = useVideoPlayerStore((state) => state.uploadStatus);
-	const cloudUploadEnabled = useVideoPlayerStore(
-		(state) => state.cloudUploadEnabled,
-	);
 
 	// use store videoSrc directly - it's the source of truth
 	const effectiveVideoSrc = videoSrc;
-	const { setPlayheadMs } = usePlayheadStore();
 	const { selectedFrame, frameRoundness, arcDarkMode, frameHeight } =
 		useFrameOptionsStore();
 	const { activeVideoBlock } = useCompositionStore();
-	const { initializeLocalTimeline } = useLocalTimelineStore();
+	const { uploadVideoFile } = useVideoUpload(projectId);
 
 	// React to theme changes and update background accordingly
 	useEffect(() => {
@@ -155,86 +149,20 @@ export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
 					};
 				}
 
-				const currentSrc = useVideoPlayerStore.getState().videoSrc;
-				if (currentSrc && currentSrc.startsWith("blob:")) {
-					// revoke previous blob URL immediately
-					try {
-						URL.revokeObjectURL(currentSrc);
-					} catch {
-						// ignore revocation errors
-					}
-				}
-
-				const url = URL.createObjectURL(file);
-				setVideoSrc(url);
-				setPlayheadMs(0, "init");
-				setVideoDuration(0);
-
-				// Save file metadata
-				setVideoFileName(file.name);
-				setVideoFileSize(file.size);
-				const format =
-					file.type.split("/")[1] || file.name.split(".").pop() || "unknown";
-				setVideoFileFormat(format);
-
-				// if cloud is off, initialize local timeline when video metadata loads
-				if (!cloudUploadEnabled) {
-					const extractMetadata = async () => {
-						const video = document.createElement("video");
-						video.preload = "metadata";
-						video.muted = true;
-
-						const loadPromise = new Promise<number>((resolve, reject) => {
-							video.onloadedmetadata = () => {
-								const duration = video.duration;
-								if (duration && !isNaN(duration) && duration > 0) {
-									resolve(duration);
-								} else {
-									reject(new Error("Invalid duration"));
-								}
-							};
-							video.onerror = () =>
-								reject(new Error("Failed to load video metadata"));
-							setTimeout(
-								() => reject(new Error("Metadata loading timeout")),
-								5000,
-							);
-						});
-
-						video.src = url;
-
-						try {
-							const duration = await loadPromise;
-							setVideoDuration(duration);
-							initializeLocalTimeline(duration);
-						} catch (error) {
-							console.error("[UPLOAD] Failed to extract metadata:", error);
-						} finally {
-							// clean up: remove video element
-							video.src = "";
-							video.load();
-							video.remove();
-						}
+				try {
+					const { blobUrl } = await uploadVideoFile(file, { projectId });
+					return {
+						status: "success",
+						result: blobUrl,
 					};
-
-					extractMetadata();
+				} catch {
+					return {
+						status: "error",
+						error: "Failed to process video",
+					};
 				}
-
-				return {
-					status: "success",
-					result: url,
-				};
 			},
-			[
-				setVideoSrc,
-				setPlayheadMs,
-				setVideoDuration,
-				setVideoFileName,
-				setVideoFileSize,
-				setVideoFileFormat,
-				cloudUploadEnabled,
-				initializeLocalTimeline,
-			],
+			[uploadVideoFile, projectId],
 		),
 		validation: {
 			accept: {
@@ -250,30 +178,11 @@ export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
 	const playheadMs = usePlayheadStore((state) => state.playheadMs);
 	const isPlaying = usePlayheadStore((state) => state.isPlaying);
 
-	// Sync video to playhead only when NOT playing or when seeking
+	// Sync video to playhead when paused (scrub/trim updates playhead elsewhere too)
 	useEffect(() => {
 		if (!videoRef.current || isPlaying) return;
-
-		const video = videoRef.current;
-		if (video.readyState < 2) return;
-
-		let targetTime = playheadMs / 1000;
-
-		if (activeVideoBlock) {
-			targetTime = activeVideoBlock.inAssetTime / 1000;
-		}
-
-		if (video.duration && !isNaN(video.duration)) {
-			targetTime = Math.min(targetTime, video.duration);
-		}
-
-		const timeDiff = Math.abs(video.currentTime - targetTime);
-
-		// Only seek if difference is significant
-		if (timeDiff > 0.05) {
-			video.currentTime = targetTime;
-		}
-	}, [playheadMs, activeVideoBlock, isPlaying]);
+		seekPreviewVideo(videoRef.current, playheadMs);
+	}, [playheadMs, isPlaying, videoRef]);
 
 	// Apply transforms from the active video block (memoized to prevent recalculation)
 	const videoTransforms = useMemo(() => {
@@ -470,16 +379,13 @@ export default function PreviewCanvas({ videoRef }: PreviewCanvasProps) {
 										disablePictureInPicture
 										onLoadedMetadata={(e) => {
 											const video = e.currentTarget;
-											if (
-												video.duration &&
-												!isNaN(video.duration) &&
-												video.duration > 0
-											) {
-												setVideoDuration(video.duration);
-												if (!cloudUploadEnabled) {
-													initializeLocalTimeline(video.duration);
-												}
+											if (!isValidDuration(video.duration)) {
+												return;
 											}
+											setVideoDuration(video.duration);
+											useTimelineDurationStore
+												.getState()
+												.setVideoDuration(video.duration);
 										}}
 									/>
 								</div>

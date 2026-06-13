@@ -30,6 +30,10 @@ export const useLocalTimelineStore = create<LocalTimelineState>((set, get) => ({
   localTracks: [],
 
   initializeLocalTimeline: (videoDuration: number) => {
+    if (get().localBlocks.length > 0) {
+      return
+    }
+
     // create default tracks
     const tracks: LocalTimelineTrack[] = [
       { id: "local_track_video", kind: "video", order: 0 },
@@ -58,6 +62,7 @@ export const useLocalTimelineStore = create<LocalTimelineState>((set, get) => ({
       },
       metadata: {},
       assetId: "local_asset" as Id<"assets">,
+      createdAt: Date.now(),
     }
 
     set({

@@ -2,7 +2,8 @@
 
 import { usePlayheadStore } from "@/lib/playhead-store"
 import { computeResizeBounds, computeValidGaps, constrainToValidGaps } from "@/lib/timeline-gap-solver"
-import { Copy, GripVertical, Scissors, Trash2 } from "lucide-react"
+import ZoomMinimap from "@/components/timeline/zoom-minimap"
+import { Copy, GripVertical, Trash2 } from "lucide-react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 
@@ -17,6 +18,11 @@ interface TimelineBlockProps {
     track?: number
     trimStart?: number
     trimEnd?: number
+    zoomLevel?: number
+    cropX?: number
+    cropY?: number
+    cropW?: number
+    cropH?: number
   }
   isSelected: boolean
   onSelect: () => void
@@ -26,9 +32,27 @@ interface TimelineBlockProps {
   onResizePreview?: (blockId: string, newStart: number, newDuration: number) => void
   onResizeEnd: (blockId: string, newStart: number, newDuration: number) => void
   onTrimStart?: (blockId: string, side: "left" | "right") => void
+  onTrimPreview?: (
+    blockId: string,
+    trimStartMs: number,
+    trimEndMs: number,
+    newStartMs?: number,
+    newDurationMs?: number,
+  ) => void
   onTrimEnd?: (blockId: string, trimStartMs: number, trimEndMs: number, newStartMs?: number, newDurationMs?: number) => void
   onDelete: (blockId: string) => void
   onDuplicate: (blockId: string) => void
+  onUpdateMetadata?: (
+    blockId: string,
+    metadata: {
+      cropX?: number
+      cropY?: number
+      cropW?: number
+      cropH?: number
+      zoomLevel?: number
+    },
+    persist?: boolean,
+  ) => void
   onBlockClick?: (blockId: string, timeInBlock: number) => void
   totalDuration: number
   pixelsPerSecond: number
@@ -50,15 +74,16 @@ export default function TimelineBlock({
   onResizeEnd,
   onDelete,
   onDuplicate,
+  onUpdateMetadata,
   onBlockClick,
   onTrimStart,
+  onTrimPreview,
   onTrimEnd,
   totalDuration,
   pixelsPerSecond,
   blocksOnSameTrack = [],
 }: TimelineBlockProps) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
-  const [showTrimHandles, setShowTrimHandles] = useState(false)
   const blockRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
   const isResizingRef = useRef<"left" | "right" | null>(null)
@@ -67,15 +92,42 @@ export default function TimelineBlock({
 
   const { playheadMs, setPlayheadMs } = usePlayheadStore()
 
+  const MIN_BLOCK_PX = 56
   const startPercent = (block.start / totalDuration) * 100
   const widthPercent = (block.duration / totalDuration) * 100
   const track = block.track || 0
+
+  const isZoom = block.type === "zoom"
+  const zoomLevel = block.zoomLevel && block.zoomLevel > 0 ? block.zoomLevel : 1.5
+  // Focus center derived from crop rect (defaults to centered).
+  const cropW = block.cropW ?? 100 / zoomLevel
+  const cropH = block.cropH ?? 100 / zoomLevel
+  const focusX = block.cropX !== undefined ? block.cropX + cropW / 2 : 50
+  const focusY = block.cropY !== undefined ? block.cropY + cropH / 2 : 50
+
+  const commitFocus = (fx: number, fy: number, persist: boolean) => {
+    const w = 100 / zoomLevel
+    const h = 100 / zoomLevel
+    const nextCropX = Math.min(100 - w, Math.max(0, fx - w / 2))
+    const nextCropY = Math.min(100 - h, Math.max(0, fy - h / 2))
+    onUpdateMetadata?.(
+      block.id,
+      {
+        cropX: nextCropX,
+        cropY: nextCropY,
+        cropW: w,
+        cropH: h,
+        zoomLevel,
+      },
+      persist,
+    )
+  }
 
   useEffect(
     () => {
       if (!blockRef.current) return
 
-      blockRef.current.style.left = `${startPercent}%`
+      blockRef.current.style.left = `min(${startPercent}%, calc(100% - ${MIN_BLOCK_PX}px))`
       blockRef.current.style.width = `${widthPercent}%`
     },
     [startPercent, widthPercent]
@@ -141,7 +193,7 @@ export default function TimelineBlock({
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => {
         if (blockRef.current) {
-          blockRef.current.style.left = `${clampedPercent}%`
+          blockRef.current.style.left = `min(${clampedPercent}%, calc(100% - ${MIN_BLOCK_PX}px))`
         }
       })
     }
@@ -172,17 +224,15 @@ export default function TimelineBlock({
 
         // If this is a video block and playhead was inside it, adjust playhead
         if (block.type === "video") {
-          const oldVisibleStart = (block.start + (block.trimStart || 0)) * 1000
-          const oldVisibleEnd = (block.start + block.duration - (block.trimEnd || 0)) * 1000
+          const oldVisibleStart = block.start * 1000
+          const oldVisibleEnd = (block.start + block.duration) * 1000
 
-          // Check if playhead was inside old visible window
-          if (playheadMs >= oldVisibleStart && playheadMs <= oldVisibleEnd) {
+          if (playheadMs >= oldVisibleStart && playheadMs < oldVisibleEnd) {
             const offsetInside = playheadMs - oldVisibleStart
-            const newVisibleStart = (finalStart + (block.trimStart || 0)) * 1000
-            const newVisibleEnd = (finalStart + block.duration - (block.trimEnd || 0)) * 1000
-            const newPlayhead = Math.min(newVisibleStart + offsetInside, newVisibleEnd)
+            const newVisibleStart = finalStart * 1000
+            const newVisibleEnd = (finalStart + block.duration) * 1000
+            const newPlayhead = Math.min(newVisibleStart + offsetInside, newVisibleEnd - 1)
 
-            console.log(`[BLOCK-MOVE] Adjusted playhead from ${(playheadMs/1000).toFixed(2)}s to ${(newPlayhead/1000).toFixed(2)}s`)
             setPlayheadMs(newPlayhead, "block-move")
           }
         }
@@ -196,6 +246,8 @@ export default function TimelineBlock({
   const handleResizeDown = (e: React.PointerEvent, side: "left" | "right") => {
     e.preventDefault()
     e.stopPropagation()
+
+    if (block.type === "video") return
 
     if (isDraggingRef.current || isResizingRef.current || !blockRef.current) return
 
@@ -249,7 +301,7 @@ export default function TimelineBlock({
         if (rafRef.current) cancelAnimationFrame(rafRef.current)
         rafRef.current = requestAnimationFrame(() => {
           if (blockRef.current) {
-            blockRef.current.style.left = `${newPercent}%`
+            blockRef.current.style.left = `min(${newPercent}%, calc(100% - ${MIN_BLOCK_PX}px))`
             blockRef.current.style.width = `${newWidthPercent}%`
           }
         })
@@ -276,7 +328,7 @@ export default function TimelineBlock({
         if (rafRef.current) cancelAnimationFrame(rafRef.current)
         rafRef.current = requestAnimationFrame(() => {
           if (blockRef.current) {
-            blockRef.current.style.left = `${(finalStart / totalDuration) * 100}%`
+            blockRef.current.style.left = `min(${(finalStart / totalDuration) * 100}%, calc(100% - ${MIN_BLOCK_PX}px))`
             blockRef.current.style.width = `${newWidthPercent}%`
           }
         })
@@ -299,18 +351,18 @@ export default function TimelineBlock({
 
       // If this is a video block and playhead was inside it, adjust playhead if needed
       if (block.type === "video") {
-        const oldVisibleStart = (block.start + (block.trimStart || 0)) * 1000
-        const oldVisibleEnd = (block.start + block.duration - (block.trimEnd || 0)) * 1000
-        const newVisibleStart = (finalStart + (block.trimStart || 0)) * 1000
-        const newVisibleEnd = (finalStart + finalDuration - (block.trimEnd || 0)) * 1000
+        const oldVisibleStart = block.start * 1000
+        const oldVisibleEnd = (block.start + block.duration) * 1000
+        const newVisibleStart = finalStart * 1000
+        const newVisibleEnd = (finalStart + finalDuration) * 1000
 
-        // Check if playhead was inside old visible window
-        if (playheadMs >= oldVisibleStart && playheadMs <= oldVisibleEnd) {
-          // Clamp playhead to new visible window
-          const newPlayhead = Math.max(newVisibleStart, Math.min(newVisibleEnd, playheadMs))
+        if (playheadMs >= oldVisibleStart && playheadMs < oldVisibleEnd) {
+          const newPlayhead = Math.max(
+            newVisibleStart,
+            Math.min(newVisibleEnd - 1, playheadMs),
+          )
 
           if (Math.abs(newPlayhead - playheadMs) > 10) {
-            console.log(`[BLOCK-RESIZE] Adjusted playhead from ${(playheadMs/1000).toFixed(2)}s to ${(newPlayhead/1000).toFixed(2)}s`)
             setPlayheadMs(newPlayhead, "block-move")
           }
         }
@@ -333,7 +385,6 @@ export default function TimelineBlock({
     const { isPlaying: wasPlaying, setIsPlaying } = usePlayheadStore.getState()
     if (wasPlaying) {
       setIsPlaying(false)
-      console.log('[TRIM] Paused playback for trimming')
     }
 
     onTrimStart?.(block.id, side)
@@ -362,25 +413,14 @@ export default function TimelineBlock({
       const deltaMs = (deltaX / pixelsPerSecond) * 1000
 
       if (side === "left") {
-        // Trimming start:
-        // - Move start time right (positive delta)
-        // - Decrease duration (positive delta)
-        // - Increase trimStart (positive delta)
-
-        // Constraints:
-        // 1. Duration >= minimumDuration
-        //    newDuration = originalDuration - delta
-        //    originalDuration - delta >= minDur => delta <= originalDuration - minDur
-        // 2. Start >= 0 (optional, but good practice)
-        //    newStart = originalStart + delta
-        //    originalStart + delta >= 0 => delta >= -originalStart
-
         const maxDelta = blockDurationMs - minimumDuration
-        const minDelta = -blockStartMs
+        const minDelta = block.type === "video" ? 0 : -blockStartMs
 
         const clampedDelta = Math.max(minDelta, Math.min(maxDelta, deltaMs))
 
-        const newStartMs = blockStartMs + clampedDelta
+        // Video blocks trim in-place: shift source offset, not timeline position
+        const newStartMs =
+          block.type === "video" ? blockStartMs : blockStartMs + clampedDelta
         const newDurationMs = blockDurationMs - clampedDelta
         const newTrimStartMs = Math.max(0, currentTrimStartMs + clampedDelta)
 
@@ -395,14 +435,20 @@ export default function TimelineBlock({
         if (rafRef.current) cancelAnimationFrame(rafRef.current)
         rafRef.current = requestAnimationFrame(() => {
           if (blockRef.current) {
-            blockRef.current.style.left = `${newStartPercent}%`
+            blockRef.current.style.left = `min(${newStartPercent}%, calc(100% - ${MIN_BLOCK_PX}px))`
             blockRef.current.style.width = `${newWidthPercent}%`
           }
         })
 
-        // Update playhead to the new start time
+        onTrimPreview?.(
+          block.id,
+          newTrimStartMs,
+          currentTrimEndMs,
+          newStartMs,
+          newDurationMs,
+        )
+
         setPlayheadMs(newStartMs, "scrub")
-        console.log(`[TRIM LEFT] delta=${(clampedDelta / 1000).toFixed(2)}s, start=${(newStartMs / 1000).toFixed(2)}s, dur=${(newDurationMs / 1000).toFixed(2)}s`)
       } else {
         // Trimming end:
         // - Start time stays same
@@ -444,9 +490,15 @@ export default function TimelineBlock({
           }
         })
 
-        // Update playhead to end of block
-        setPlayheadMs(blockStartMs + newDurationMs, "scrub")
-        console.log(`[TRIM RIGHT] delta=${(clampedDelta / 1000).toFixed(2)}s, dur=${(newDurationMs / 1000).toFixed(2)}s, trimEnd=${(newTrimEndMs / 1000).toFixed(2)}s`)
+        onTrimPreview?.(
+          block.id,
+          currentTrimStartMs,
+          newTrimEndMs,
+          blockStartMs,
+          newDurationMs,
+        )
+
+        setPlayheadMs(Math.max(blockStartMs, blockStartMs + newDurationMs - 1), "scrub")
       }
     }
 
@@ -457,8 +509,6 @@ export default function TimelineBlock({
 
       document.removeEventListener("pointermove", handlePointerMove)
       document.removeEventListener("pointerup", handlePointerUp)
-
-      console.log(`[TRIM END] side=${side}, start=${(lastStartMs / 1000).toFixed(2)}s, dur=${(lastDurationMs / 1000).toFixed(2)}s`)
 
       onTrimEnd?.(
         block.id,
@@ -495,14 +545,37 @@ export default function TimelineBlock({
           : `${block.color} opacity-80 hover:opacity-100`
           }`}
         style={{
-          left: `${startPercent}%`,
+          // Clamp horizontal position so a px-based minWidth block can never
+          // spill past the right edge of the timeline container.
+          left: `min(${startPercent}%, calc(100% - ${MIN_BLOCK_PX}px))`,
           width: `${widthPercent}%`,
-          minWidth: "60px",
+          minWidth: `${MIN_BLOCK_PX}px`,
+          maxWidth: "100%",
           top: `${track * 64 + 8}px`,
           height: "48px",
           zIndex: isSelected ? 20 : 10,
         }}
       >
+        {isZoom ? (
+          <div className="h-full flex items-stretch gap-1.5 px-1.5 py-1 overflow-visible">
+            <div
+              className="h-full aspect-video shrink-0"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <ZoomMinimap
+                frameTime={block.start}
+                zoomLevel={zoomLevel}
+                focusX={focusX}
+                focusY={focusY}
+                onFocusPreview={(fx, fy) => commitFocus(fx, fy, false)}
+                onFocusCommit={(fx, fy) => commitFocus(fx, fy, true)}
+              />
+            </div>
+            <span className="text-[10px] font-semibold text-white/90 truncate self-center">
+              {block.label}
+            </span>
+          </div>
+        ) : (
         <div className="h-full flex items-center justify-between px-2.5 gap-2 overflow-hidden">
           {block.type === "video" && (
             <div className="text-white/80 hover:text-white transition-colors shrink-0 cursor-grab active:cursor-grabbing touch-none">
@@ -513,23 +586,28 @@ export default function TimelineBlock({
           <span className="text-xs font-semibold text-white truncate flex-1 text-center px-1">
             {block.label}
           </span>
-
-          {block.type === "video" && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowTrimHandles(!showTrimHandles)
-              }}
-              className={`text-white/80 hover:text-white transition-colors shrink-0 ${showTrimHandles ? 'text-white' : ''}`}
-              title="Trim video"
-            >
-              <Scissors size={14} strokeWidth={2} />
-            </button>
-          )}
         </div>
+        )}
 
-        {/* Regular resize handles */}
-        {!showTrimHandles && (
+        {block.type === "video" ? (
+          <>
+            <div
+              onPointerDown={(e) => handleTrimDown(e, "left")}
+              className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-all rounded-l-lg"
+              title="Trim start"
+            >
+              <div className="absolute inset-y-1 left-1 w-1 bg-foreground/70 hover:bg-foreground rounded-full transition-colors" />
+            </div>
+
+            <div
+              onPointerDown={(e) => handleTrimDown(e, "right")}
+              className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 transition-all rounded-r-lg"
+              title="Trim end"
+            >
+              <div className="absolute inset-y-1 right-1 w-1 bg-foreground/70 hover:bg-foreground rounded-full transition-colors" />
+            </div>
+          </>
+        ) : (
           <>
             <div
               onPointerDown={(e) => handleResizeDown(e, "left")}
@@ -545,27 +623,6 @@ export default function TimelineBlock({
               title="Drag to resize"
             >
               <div className="absolute inset-y-1 right-1 w-1 bg-foreground/70 hover:bg-foreground rounded-full transition-colors" />
-            </div>
-          </>
-        )}
-
-        {/* Trim handles for video blocks */}
-        {showTrimHandles && block.type === "video" && (
-          <>
-            <div
-              onPointerDown={(e) => handleTrimDown(e, "left")}
-              className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize touch-none bg-primary/20 hover:bg-primary/30 transition-all rounded-l-lg"
-              title="Trim start"
-            >
-              <div className="absolute inset-y-1 left-1 w-1 bg-primary hover:bg-primary/80 rounded-full transition-colors" />
-            </div>
-
-            <div
-              onPointerDown={(e) => handleTrimDown(e, "right")}
-              className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize touch-none bg-primary/20 hover:bg-primary/30 transition-all rounded-r-lg"
-              title="Trim end"
-            >
-              <div className="absolute inset-y-1 right-1 w-1 bg-primary hover:bg-primary/80 rounded-full transition-colors" />
             </div>
           </>
         )}
