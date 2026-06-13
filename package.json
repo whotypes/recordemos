@@ -130,10 +130,8 @@
     "vitest": "^3.0.5",
     "web-vitals": "^5.1.0"
   },
-  "pnpm": {
-    "overrides": {
-      "srvx": "0.8.15",
-      "react-is": "19.2"
-    }
+  "overrides": {
+    "srvx": "0.8.15",
+    "react-is": "19.2"
   }
 }
