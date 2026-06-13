@@ -28,7 +28,7 @@ export default function ExportModule({
 			aspectRatio,
 			videoSrc,
 			fileName: videoFileName
-				? videoFileName.replace(/\.[^/.]+$/, "-4k.webm")
+				? videoFileName.replace(/\.[^/.]+$/, "-4k.mp4")
 				: undefined,
 			sourceFileName: videoFileName ?? undefined,
 			videoFormat: videoFileFormat || undefined,
@@ -141,9 +141,8 @@ export default function ExportModule({
 						<div className="bg-muted/50 border border-border/30 rounded p-3">
 							<p className="text-xs text-muted-foreground">
 								<span className="font-medium text-foreground">Note:</span>{" "}
-								Export runs entirely in your browser. When WebCodecs is
-								available, we mux an MP4 via WebAV; otherwise we record the
-								canvas (often WebM/VP9). Nothing is uploaded. Long or
+								Export runs entirely in your browser as MP4 (WebCodecs when
+								available, with FFmpeg fallback). Nothing is uploaded. Long or
 								high-resolution clips can use significant CPU and RAM; you can
 								cancel an in-progress export.
 							</p>
