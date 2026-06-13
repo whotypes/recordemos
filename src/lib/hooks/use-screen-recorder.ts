@@ -1,130 +1,131 @@
-import { useVideoPlayerStore } from "@/lib/video-player-store";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 
-interface RecordedVideo {
-  blob: Blob;
-  blobUrl: string;
-  fileName: string;
-  fileSize: number;
-  fileFormat: string;
+export interface RecordedVideo {
+	blob: Blob;
+	fileName: string;
+	durationMs: number;
 }
 
 export const useScreenRecorder = () => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
-  // use getState for setters to avoid unnecessary subscriptions
-  const setVideoSrc = useVideoPlayerStore((state) => state.setVideoSrc);
-  const setVideoFileName = useVideoPlayerStore((state) => state.setVideoFileName);
-  const setVideoFileSize = useVideoPlayerStore((state) => state.setVideoFileSize);
-  const setVideoFileFormat = useVideoPlayerStore((state) => state.setVideoFileFormat);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
+	const [isRecording, setIsRecording] = useState(false);
+	const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(
+		null,
+	);
+	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+	const streamRef = useRef<MediaStream | null>(null);
+	const chunksRef = useRef<BlobPart[]>([]);
+	const recordingStartMsRef = useRef<number | null>(null);
 
-  const startScreenRecord = async () => {
-    try {
-      if (!navigator.mediaDevices.getDisplayMedia) {
-        alert("Your device does not support the Screen Capture API");
-        return;
-      }
+	const startScreenRecord = async () => {
+		try {
+			if (!navigator.mediaDevices.getDisplayMedia) {
+				alert("Your device does not support the Screen Capture API");
+				return;
+			}
 
-      setIsRecording(true);
-      // clear previous chunks
-      chunksRef.current = [];
+			setIsRecording(true);
+			chunksRef.current = [];
+			recordingStartMsRef.current = performance.now();
 
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false,
-      });
+			const stream = await navigator.mediaDevices.getDisplayMedia({
+				video: true,
+				audio: false,
+			});
 
-      streamRef.current = stream;
+			streamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
-          ? "video/webm;codecs=vp8"
-          : "video/webm";
+			const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+				? "video/webm;codecs=vp9"
+				: MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+					? "video/webm;codecs=vp8"
+					: "video/webm";
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = mediaRecorder;
+			const mediaRecorder = new MediaRecorder(stream, { mimeType });
+			mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
+			mediaRecorder.ondataavailable = (event) => {
+				if (event.data && event.data.size > 0) {
+					chunksRef.current.push(event.data);
+				}
+			};
 
-      mediaRecorder.onstop = () => {
-        const currentSrc = useVideoPlayerStore.getState().videoSrc;
-        if (currentSrc && currentSrc.startsWith("blob:")) {
-          URL.revokeObjectURL(currentSrc);
-        }
+			mediaRecorder.onstop = () => {
+				const startMs = recordingStartMsRef.current ?? performance.now();
+				const durationMs = Math.max(0, Math.round(performance.now() - startMs));
+				recordingStartMsRef.current = null;
 
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        const url = URL.createObjectURL(blob);
+				const blob = new Blob(chunksRef.current, { type: mimeType });
+				chunksRef.current = [];
+				mediaRecorderRef.current = null;
 
-        setVideoSrc(url);
-        setIsRecording(false);
+				if (streamRef.current) {
+					streamRef.current.getTracks().forEach((track) => track.stop());
+					streamRef.current = null;
+				}
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const fileName = `screen-recording-${timestamp}.webm`;
-        setVideoFileName(fileName);
-        setVideoFileSize(blob.size);
-        setVideoFileFormat("webm");
+				setIsRecording(false);
 
-        setRecordedVideo({
-          blob,
-          blobUrl: url,
-          fileName,
-          fileSize: blob.size,
-          fileFormat: "webm",
-        });
+				if (blob.size === 0) {
+					console.error("Screen recording produced empty blob");
+					toast.error("Recording failed — no video data was captured");
+					return;
+				}
 
-        chunksRef.current = [];
-        mediaRecorderRef.current = null;
-        streamRef.current = null;
-      };
+				const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+				const fileName = `screen-recording-${timestamp}.webm`;
+				setRecordedVideo({ blob, fileName, durationMs });
+			};
 
-      mediaRecorder.onerror = () => {
-        setIsRecording(false);
-      };
+			mediaRecorder.onerror = () => {
+				recordingStartMsRef.current = null;
+				setIsRecording(false);
+			};
 
-      mediaRecorder.start();
+			// Timesliced capture so chunks are available even if stop races the final flush.
+			mediaRecorder.start(250);
 
-      stream.getVideoTracks()[0].onended = () => {
-        if (mediaRecorder.state !== "inactive") {
-          mediaRecorder.stop();
-        }
-      };
-    } catch (err) {
-      console.error("Screen capture error:", err);
-      setIsRecording(false);
-      mediaRecorderRef.current = null;
-      streamRef.current = null;
-    }
-  };
+			stream.getVideoTracks()[0].onended = () => {
+				if (mediaRecorder.state !== "inactive") {
+					mediaRecorder.stop();
+				}
+			};
+		} catch (err) {
+			console.error("Screen capture error:", err);
+			recordingStartMsRef.current = null;
+			setIsRecording(false);
+			mediaRecorderRef.current = null;
+			if (streamRef.current) {
+				streamRef.current.getTracks().forEach((track) => track.stop());
+				streamRef.current = null;
+			}
+		}
+	};
 
-  const stopScreenRecord = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-    }
-  };
+	const stopScreenRecord = () => {
+		const recorder = mediaRecorderRef.current;
+		if (!recorder || recorder.state === "inactive") {
+			return;
+		}
+		try {
+			const r = recorder as MediaRecorder & { requestData?: () => void };
+			r.requestData?.();
+		} catch {
+			/* ignore */
+		}
+		recorder.stop();
+		// Stream tracks are stopped in onstop after the final chunk is flushed.
+	};
 
-  const clearRecordedVideo = () => {
-    if (recordedVideo?.blobUrl) {
-      URL.revokeObjectURL(recordedVideo.blobUrl);
-    }
-    setRecordedVideo(null);
-  };
+	const clearRecordedVideo = () => {
+		setRecordedVideo(null);
+	};
 
-  return {
-    startScreenRecord,
-    stopScreenRecord,
-    isRecording,
-    recordedVideo,
-    clearRecordedVideo,
-  };
+	return {
+		startScreenRecord,
+		stopScreenRecord,
+		isRecording,
+		recordedVideo,
+		clearRecordedVideo,
+	};
 };
