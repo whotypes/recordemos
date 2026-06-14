@@ -29,7 +29,6 @@ interface UnsplashPhoto {
 	urls: {
 		regular: string;
 		small: string;
-		small_s3?: string;
 		full: string;
 	};
 	alt_description?: string;
@@ -203,7 +202,7 @@ export default function BackgroundSelector() {
 											>
 												<img
 													className="h-full w-full rounded-md object-cover"
-													src={data.urls.small_s3 ?? data.urls.small}
+													src={data.urls.small}
 													alt={data.alt_description || "Wallpaper"}
 													loading="lazy"
 												/>
